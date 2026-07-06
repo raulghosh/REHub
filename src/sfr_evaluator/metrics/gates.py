@@ -1,37 +1,72 @@
 """Return metrics and the hard gates that admit a deal to human review.
 
-IRR / equity multiple operate on a cash-flow stream (year 0 = -equity, years 1..N = levered
-CF, year N also += net reversion). The headline screening gate is the development spread:
-yield-on-cost minus exit cap.
-
-Phase 1. Stubbed.
+The headline screening gate is the development spread: yield-on-cost minus exit cap.
 """
 
 from __future__ import annotations
 
 from decimal import Decimal
 
-from ..schemas import Assumptions, GateResult
+from ..schemas import Assumptions, GateResult, UnderwritingResult, Property, RentEstimate
 
 
-def irr(cash_flows: list[Decimal]) -> float:
-    """Internal rate of return on a periodic cash-flow stream (year 0 negative)."""
-    raise NotImplementedError("Phase 1: IRR not yet implemented.")
-
-
-def equity_multiple(cash_flows: list[Decimal]) -> float:
-    raise NotImplementedError("Phase 1: equity multiple not yet implemented.")
-
-
-def break_even_occupancy(opex: Decimal, debt_service: Decimal, gpr: Decimal) -> float:
-    """(OpEx + debt service) / gross potential rent."""
-    raise NotImplementedError("Phase 1: break-even occupancy not yet implemented.")
-
-
-def evaluate_gates(metrics: dict, assumptions: Assumptions) -> list[GateResult]:
+def evaluate_gates(result: UnderwritingResult, prop: Property, assumptions: Assumptions) -> list[GateResult]:
     """Apply the SFR/townhouse hard gates and return one GateResult each.
 
-    Gates: rent-to-price, cash-on-cash, DSCR (stressed), yield-on-cost - exit-cap spread,
-    levered IRR. See README "The gates" table.
+    Gates:
+    1. Rent-to-price: monthly_rent / purchase_price >= min_rent_to_price
+    2. Cash-on-cash (Year 1): >= min_cash_on_cash
+    3. DSCR (stressed): >= min_dscr
+    4. Yield-on-cost - exit cap spread: >= min_yoc_exit_spread_bps
+    5. Levered IRR: >= min_levered_irr
     """
-    raise NotImplementedError("Phase 1: gate evaluation not yet implemented.")
+    gates = []
+
+    # Gate 1: Rent-to-price
+    monthly_rent_to_price = float(result.rent.point / prop.list_price) if prop.list_price > 0 else 0.0
+    gates.append(GateResult(
+        name="Rent-to-Price",
+        value=monthly_rent_to_price,
+        threshold=assumptions.min_rent_to_price,
+        passed=monthly_rent_to_price >= assumptions.min_rent_to_price,
+        note=f"{monthly_rent_to_price:.2%} / month",
+    ))
+
+    # Gate 2: Cash-on-cash
+    gates.append(GateResult(
+        name="Cash-on-Cash",
+        value=result.cash_on_cash,
+        threshold=assumptions.min_cash_on_cash,
+        passed=result.cash_on_cash >= assumptions.min_cash_on_cash,
+        note=f"Year 1: {result.cash_on_cash:.2%}",
+    ))
+
+    # Gate 3: DSCR (stressed)
+    gates.append(GateResult(
+        name="DSCR (Stressed)",
+        value=result.dscr_stressed,
+        threshold=assumptions.min_dscr,
+        passed=result.dscr_stressed >= assumptions.min_dscr,
+        note=f"At rate + {assumptions.stress_rate_bps} bps",
+    ))
+
+    # Gate 4: Yield-on-cost - exit cap spread
+    yoc_exit_spread = (result.yield_on_cost - result.exit_cap_rate) * 10000  # in basis points
+    gates.append(GateResult(
+        name="YoC - Exit Cap Spread",
+        value=yoc_exit_spread,
+        threshold=assumptions.min_yoc_exit_spread_bps,
+        passed=yoc_exit_spread >= assumptions.min_yoc_exit_spread_bps,
+        note=f"{yoc_exit_spread:.0f} bps",
+    ))
+
+    # Gate 5: Levered IRR
+    gates.append(GateResult(
+        name="Levered IRR",
+        value=result.levered_irr,
+        threshold=assumptions.min_levered_irr,
+        passed=result.levered_irr >= assumptions.min_levered_irr,
+        note=f"{result.levered_irr:.1%}",
+    ))
+
+    return gates

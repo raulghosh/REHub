@@ -1,0 +1,6 @@
+property_id,address,city,state,zip_code,beds,baths,sqft,list_price,asset_type,roof_age,hvac_age,water_heater_age
+sfr-001,123 Main St,Austin,TX,78704,3,2,1600,350000,single_family,8,5,4
+sfr-002,456 Oak Ave,Austin,TX,78705,2,1,1200,250000,single_family,15,10,8
+sfr-003,789 Pine Rd,Austin,TX,78701,4,3,2000,425000,single_family,5,3,2
+sfr-004,321 Elm St,Austin,TX,78702,3,2,1550,280000,townhouse,12,7,6
+sfr-005,654 Maple Ln,Austin,TX,78703,2,1,1100,220000,single_family,20,15,12

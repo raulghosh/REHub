@@ -33,6 +33,8 @@ class ComponentAge(BaseModel):
     hvac: Optional[int] = None
     water_heater: Optional[int] = None
     flooring: Optional[int] = None
+    electrical: Optional[int] = None
+    plumbing: Optional[int] = None
 
 
 class Property(BaseModel):
@@ -105,6 +107,12 @@ class Assumptions(BaseModel):
     hvac_cost: Decimal = Decimal(7000)
     water_heater_life: int = 12
     water_heater_cost: Decimal = Decimal(1500)
+    flooring_life: int = 20
+    flooring_cost: Decimal = Decimal(5000)
+    electrical_life: int = 50
+    electrical_cost: Decimal = Decimal(8000)
+    plumbing_life: int = 50
+    plumbing_cost: Decimal = Decimal(6000)
 
     # Acquisition / disposition
     closing_cost_pct: float = 0.03          # of purchase price
@@ -117,7 +125,7 @@ class Assumptions(BaseModel):
     hold_years: int = 5
 
     # Exit — exit cap must reflect a spread over entry, never equal it.
-    exit_cap_rate: float = 0.06             # if None-set, derive as entry + spread
+    exit_cap_rate: Optional[float] = None   # if None, derive as entry_cap + spread
     exit_cap_spread_bps: int = 75
 
     # Taxes — post-sale reassessment.
