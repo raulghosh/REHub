@@ -3,11 +3,11 @@
 # Rates are fractions (0.07 == 7%). Delete a line to use the model's default.
 
 loan:
+  type: conventional          # conventional | dscr | commercial | fha (5+ units default to commercial)
+  credit_score: 740           # prices the rate and PMI from the weekly market rate
   down_payment_pct: 0.25      # 1.0 = all cash
-  rate: 0.07                  # investment-property quote, not the owner-occupied rate
-  term_years: 30
   points_pct: 0.0
-  pmi_rate: 0.0075            # only while the loan is above 78% of value
+  # rate: 0.0725              # a lender quote overrides the priced rate
 
 management:
   mode: pm                    # pm | self
@@ -27,11 +27,10 @@ operations:
 growth:                       # each line grows with its own long-run index
   general_inflation: 0.025    # CPI-U
   rent: 0.03                  # CPI rent of primary residence (~3.3%/yr since 1990)
-  insurance: 0.05             # premiums have outrun CPI
   maintenance: 0.035          # construction labor + materials
-  hoa: 0.04
   utilities: 0.035
-  # appreciation and property_tax default to the zip-adjusted long-run rate
+  # appreciation and property_tax default to the zip-adjusted long-run rate, insurance to 5%,
+  # and HOA dues to the HOA's own history fading to its insurance + upkeep mix
 
 tax:
   filing_status: mfj          # mfj | single

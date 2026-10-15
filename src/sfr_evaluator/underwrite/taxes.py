@@ -83,6 +83,7 @@ class TaxInputs:
     land_basis: float
     sale_price: float
     selling_costs: float
+    rental_share: list[float] | None = None   # per year; < 1 while you live in part of it
 
 
 @dataclass
@@ -117,6 +118,9 @@ def compute(ti: TaxInputs, p: TaxProfile, inflation: float, start_index: float) 
         dep_added = sum(a / RESIDENTIAL_LIFE for a in added)   # ponytail: additions held < 27.5 yrs
         dep_sl = dep_bldg + dep_added
         dep_cs = (bonus if t == 1 else 0.0) + ((cost_seg - bonus) / COST_SEG_LIFE if t <= COST_SEG_LIFE else 0.0)
+        if ti.rental_share is not None:   # ponytail: personal-use years forgo that share's depreciation
+            dep_bldg, dep_added, dep_cs = (x * ti.rental_share[t - 1] for x in (dep_bldg, dep_added, dep_cs))
+            dep_sl = dep_bldg + dep_added
         taken_bldg += dep_bldg
         taken_added += dep_added
         taken_cs += dep_cs

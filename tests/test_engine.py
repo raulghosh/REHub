@@ -26,7 +26,8 @@ def golden(**overrides) -> DealInput:
         "operations": {"vacancy_pct": 0.05, "credit_loss_pct": 0, "lease_up_months": 0,
                        "avg_tenancy_years": 2, "turnover_cost": 1000, "property_tax_rate": 0.01,
                        "insurance_annual": 1200, "utilities_monthly": 0, "other_expenses_annual": 0,
-                       "replacement_cost_psf": 100, "known": ALL_KNOWN},
+                       "replacement_cost_psf": 100, "known": ALL_KNOWN,
+                       "compliance": {"rental_license": False, "detectors": False}},
         "growth": {"appreciation": 0.03},
         "targets": {"estimate_allowance_pct": 0.10, "min_cash_on_cash": 0.05,
                     "min_monthly_cash_flow_per_unit": None, "min_dscr": None, "min_irr": None},
@@ -117,8 +118,12 @@ def test_mortgage_math():
     assert debt.monthly_payment(100_000, 0.06, 30) == pytest.approx(599.55, abs=0.01)
     years = debt.schedule(100_000, 0.06, 30, 30)
     assert sum(y.principal for y in years) == pytest.approx(100_000, abs=0.01)
-    pmi = debt.schedule(95_000, 0.07, 30, 30, pmi_rate=0.01, pmi_stop_balance=78_000)
+    pmi = debt.schedule(95_000, 0.07, 30, 30, mi_rate=0.01, mi_stop_balance=78_000)
     assert pmi[0].pmi == pytest.approx(950) and pmi[-1].pmi == 0
+    fha = debt.schedule(96_500, 0.07, 30, 12, mi_rate=0.0055, mi_on_balance=True, mi_months=132)
+    assert fha[0].pmi == pytest.approx(0.0055 * 96_500, rel=0.01) and fha[11].pmi == 0   # 11 years
+    balloon = debt.schedule(100_000, 0.07, 25, 12, refis=(debt.Refi(121, None, 0.07, 15, 0.01),))
+    assert balloon[10].refi_cash_out == pytest.approx(-0.01 * balloon[9].balance, rel=1e-3)
 
 
 def test_irr():

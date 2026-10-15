@@ -1,0 +1,5 @@
+{
+  "rate_30y": 0.0728,
+  "as_of": "2026-10-01",
+  "source": "Freddie Mac PMMS weekly 30-yr average (snapshot; the web app refreshes it from FRED when online)"
+}

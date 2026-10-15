@@ -20,14 +20,17 @@ def _run(name: str, deal: DealInput, r: Resolved) -> Scenario:
 
 
 def stress(deal: DealInput, r: Resolved) -> list[Scenario]:
-    higher_rate = deal.model_copy(update={"loan": deal.loan.model_copy(update={"rate": deal.loan.rate + 0.01})})
+    if deal.loan.rate is not None:
+        rate_case = (deal.model_copy(update={"loan": deal.loan.model_copy(update={"rate": deal.loan.rate + 0.01})}), r)
+    else:
+        rate_case = (deal, replace(r, base_rate=r.base_rate + 0.01))
     cases = [
         ("Base case", deal, r),
         ("Rent 10% lower", deal, replace(r, rent_monthly=r.rent_monthly * 0.9)),
         ("Vacancy +5 pts", deal, replace(r, vacancy=r.vacancy + 0.05)),
         ("Insurance +50%", deal, replace(r, insurance=r.insurance * 1.5)),
         ("No appreciation", deal, replace(r, appreciation=0.0)),
-        ("Interest rate +1 pt", higher_rate, r),
+        ("Interest rate +1 pt", *rate_case),
     ]
     if deal.rehab:
         cases.append(("Rehab 25% over budget", deal, replace(r, rehab_total=r.rehab_total * 1.25)))

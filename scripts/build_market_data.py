@@ -11,6 +11,7 @@ deliberately ignores month-to-month market noise. All sources are free and publi
   US Census ACS 5-yr   median gross rent by bedrooms, property-tax rate, rental vacancy,
   (needs api.census.gov) median year built, median household income. Skipped with a
                        warning when the host is unreachable.
+  Freddie Mac PMMS     weekly 30-yr mortgage rate via FRED -> data/rates.json.
 
 Run from the repo root (streams ~1.5 GB from Redfin, takes a few minutes):
 
@@ -213,7 +214,26 @@ COLUMNS = ["zip", "state", "city", "metro", "sales_12m", "median_price", "median
            "median_value", "tax_rate", "rental_vacancy", "median_year_built", "median_income"]
 
 
+FRED_PMMS = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE30US"
+
+
+def refresh_rate_snapshot() -> None:
+    """Latest Freddie Mac weekly 30-yr rate into data/rates.json (kept as-is when offline)."""
+    try:
+        rows = urllib.request.urlopen(FRED_PMMS, timeout=60).read().decode().strip().splitlines()
+        day, value = next(r.split(",") for r in reversed(rows) if r.split(",")[1] not in ("", "."))
+    except Exception as e:  # noqa: BLE001 — optional source
+        print(f"  PMMS unavailable, keeping the old snapshot: {e}", file=sys.stderr)
+        return
+    snap = {"rate_30y": round(float(value) / 100, 5), "as_of": day,
+            "source": "Freddie Mac PMMS weekly 30-yr average (snapshot; the web app refreshes it "
+                      "from FRED when online)"}
+    (DATA_DIR / "rates.json").write_text(json.dumps(snap, indent=2) + "\n")
+
+
 def main() -> int:
+    print("Mortgage rate ...", file=sys.stderr)
+    refresh_rate_snapshot()
     print("Redfin national ...", file=sys.stderr)
     national = national_ppsf_by_year()
     print("Redfin zips (streaming ~1.5 GB) ...", file=sys.stderr)

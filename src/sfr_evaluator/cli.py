@@ -90,7 +90,14 @@ def summary(r: Result) -> str:
         (f"IRR {pct(m.irr_before_tax)} before tax, {pct(m.irr_after_tax)} after | "
          f"cash to close ${a.total_cash_needed:,.0f}"),
         " | ".join(f"{s.name}: ${s.monthly_cash_flow:,.0f}/mo" for s in r.management),
+        (f"Loan: {r.financing.loan_type} at {r.financing.rate:.2%} (market {r.financing.base_rate:.2%} "
+         f"as of {r.financing.base_as_of})" if r.financing.loan_type != "all cash" else "Loan: all cash"),
     ]
+    best = max((e for e in r.exit_timeline if e.irr_if_sold is not None), key=lambda e: e.irr_if_sold, default=None)
+    last = r.exit_timeline[-1]
+    lines.append(f"Sell in year {r.sale.year}: ${r.returns.total:,.0f} after tax"
+                 + (f" | best IRR if sold in year {best.year}" if best else "")
+                 + f" | keep to year {last.year}: ${last.wealth_if_kept:,.0f} wealth")
     if r.warnings:
         lines += ["Watch out:"] + [f"  - {w}" for w in r.warnings]
     return "\n".join(lines)

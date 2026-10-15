@@ -8,8 +8,20 @@ the margin of safety discounts it, and we never pay above market (or ARV minus r
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 
-from ..schemas import DealInput, Metrics, Offer, ReturnBreakdown, TargetCheck
+from ..schemas import (
+    Assumption,
+    DealInput,
+    DownPaymentOption,
+    ExitYear,
+    Financing,
+    Metrics,
+    Offer,
+    ReturnBreakdown,
+    TargetCheck,
+)
+from ..underwrite import model, rates
 from ..underwrite.model import Projection, Resolved, project
 
 
@@ -35,8 +47,8 @@ def irr(flows: list[float]) -> float | None:
 def metrics(r: Resolved, pj: Projection) -> Metrics:
     s, a = pj.stabilized, pj.acquisition
     cash_left = a.total_cash_needed - sum(y.refi_cash_out for y in pj.years)
-    all_in = (a.price + a.closing_costs + a.inspections + a.other_costs - a.seller_credits
-              + a.rehab + a.repairs_at_purchase)
+    all_in = (a.price + a.closing_costs + a.inspections + a.compliance_costs + a.other_costs
+              - a.seller_credits + a.rehab + a.repairs_at_purchase)
     gpi = s.gross_rent + s.other_income
     return Metrics(
         market_value=r.base_value,
@@ -56,6 +68,7 @@ def metrics(r: Resolved, pj: Projection) -> Metrics:
         irr_after_tax=irr(pj.after_tax),
         equity_multiple=sum(pj.after_tax[1:]) / a.total_cash_needed,
         cash_left_in_deal=cash_left,
+        house_hack_monthly=pj.house_hack_monthly,
     )
 
 
@@ -68,7 +81,8 @@ def breakdown(r: Resolved, pj: Projection) -> ReturnBreakdown:
         "appreciation": sale.price - r.base_value,
         "equity_at_purchase": r.base_value - a.price - a.rehab - a.repairs_at_purchase,
         "transaction_costs": -(a.closing_costs + a.lender_costs + a.inspections + a.other_costs
-                               - a.seller_credits + sale.selling_costs + pj.refi_costs),
+                               + a.compliance_costs - a.seller_credits + sale.selling_costs
+                               + pj.refi_costs),
         "taxes": -(sum(y.tax for y in pj.years) + sale.tax),
     }
     return ReturnBreakdown(**parts, total=sum(parts.values()))
@@ -160,3 +174,68 @@ def _fmt(name: str, v: float) -> str:
     if name == "DSCR":
         return f"{v:.2f}x"
     return f"{v:.0%}"
+
+
+def _hold(deal: DealInput, years: int) -> DealInput:
+    return deal.model_copy(update={"exit": deal.exit.model_copy(update={"hold_years": years})})
+
+
+def exit_timeline(deal: DealInput, r: Resolved, base: Projection) -> list[ExitYear]:
+    """Sell in year N vs. keep it, for every year until the loan is paid off (30 years if cash)."""
+    if deal.loan.down_payment_pct >= 1:
+        horizon = 30
+    else:
+        refi = deal.rehab.refi_term_years + (r.refi_month or 0) // 12 if r.refi_month else 0
+        horizon = max(base.pricing.amort_years, refi)
+    horizon = min(model.HORIZON, horizon)
+    price = deal.purchase.price
+    keep = project(_hold(deal, horizon), r, price)
+    invested = keep.acquisition.total_cash_needed
+    out, collected = [], 0.0
+    for y in keep.years:
+        collected += y.cash_flow_after_tax
+        sold = project(_hold(deal, y.year), r, price)
+        out.append(ExitYear(year=y.year, value=y.value, loan_balance=y.loan_balance,
+                            profit_if_sold=sum(sold.after_tax), irr_if_sold=irr(sold.after_tax),
+                            multiple_if_sold=sum(sold.after_tax[1:]) / invested,
+                            wealth_if_kept=y.value - y.loan_balance + collected - invested))
+    return out
+
+
+DOWN_PAYMENTS = (0.035, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30)
+
+
+def down_payment_options(deal: DealInput, r: Resolved) -> list[DownPaymentOption]:
+    """The same deal at each down payment, priced from the grid (not your quote)."""
+    loan, units = deal.loan, r.units
+    fees = loan.lender_fees if loan.lender_fees is not None else model.LENDER_FEES[loan.type]
+    rr = replace(r, lender_fees=fees)
+    out = []
+    for dp in sorted({*DOWN_PAYMENTS, min(loan.down_payment_pct, 0.99)}):
+        cap, why = rates.max_ltv(loan.type, units, r.owner_months > 0, loan.credit_score)
+        if 1 - dp > cap + 1e-9:
+            out.append(DownPaymentOption(down_pct=dp, eligible=False, note=why))
+            continue
+        d2 = deal.model_copy(update={"loan": loan.model_copy(update={"down_payment_pct": dp, "rate": None,
+                                                                      "pmi_rate": None})})
+        pj = project(d2, rr, deal.purchase.price)
+        m = metrics(rr, pj)
+        out.append(DownPaymentOption(
+            down_pct=dp, eligible=True, note=pj.pricing.mi_note or "No mortgage insurance",
+            rate=pj.rate, mortgage_insurance=pj.mortgage_insurance,
+            cash_needed=pj.acquisition.total_cash_needed, monthly_cash_flow=m.monthly_cash_flow,
+            cash_on_cash=m.cash_on_cash, irr_after_tax=m.irr_after_tax))
+    return out
+
+
+def financing(deal: DealInput, r: Resolved, pj: Projection) -> Financing:
+    cash = deal.loan.down_payment_pct >= 1
+    steps = [Assumption(label=label, value=value, source="") for label, value in pj.pricing.steps]
+    if deal.loan.rate is not None:
+        steps.append(Assumption(label="Your quoted rate (used instead)", value=f"{deal.loan.rate:.3%}", source=""))
+    return Financing(
+        loan_type="all cash" if cash else deal.loan.type, base_rate=r.base_rate, base_as_of=r.base_as_of,
+        rate=pj.rate, rate_steps=steps, mortgage_insurance=pj.mortgage_insurance,
+        mortgage_insurance_note=pj.pricing.mi_note if pj.mortgage_insurance else "",
+        max_ltv=None if cash else pj.pricing.max_ltv, eligible=cash or pj.pricing.eligible,
+        notes=[] if cash else pj.pricing.notes)

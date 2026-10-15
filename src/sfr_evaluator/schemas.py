@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class PropertyType(str, Enum):
@@ -47,8 +47,39 @@ class Property(BaseModel):
     property_type: PropertyType = PropertyType.SINGLE_FAMILY
     year_built: int = Field(ge=1700, le=2100)
     sqft: float = Field(gt=100, le=2_000_000, description="Total finished living area, all units.")
+    stories: int = Field(1, ge=1, le=60, description="Above-ground floors; sizes the roof.")
     units: list[Unit] = Field(min_length=1, max_length=500)
     hoa_monthly: float = Field(0, ge=0, le=100_000)
+    hoa_history: list[float] = Field(default_factory=list, max_length=30,
+                                     description="Past monthly dues, oldest first, one per year.")
+    hoa_reserve_funded_pct: float | None = Field(None, ge=0, le=3, description="From the reserve study.")
+    hoa_special_assessment: float = Field(0, ge=0, description="Approved or expected, total $ for this property.")
+    hoa_assessment_year: int = Field(1, ge=0, le=40)
+
+
+ComponentKey = Literal["roof", "hvac", "water_heater", "appliances", "flooring", "interior_paint",
+                       "exterior", "windows", "electrical", "plumbing", "kitchen_bath"]
+
+
+class ComponentAge(BaseModel):
+    """A component whose age you know (inspection report, seller disclosure, permits)."""
+    key: ComponentKey
+    age: float = Field(ge=0, le=200)
+    cost: float | None = Field(None, ge=0, description="Replacement cost today; default from the catalog.")
+    life: float | None = Field(None, gt=0, le=150, description="Useful life in years; default from the catalog.")
+
+
+class Components(BaseModel):
+    roof_material: Literal["asphalt_3tab", "architectural", "metal", "tile", "slate", "flat"] = "architectural"
+    roof_pitch: Literal["low", "medium", "steep"] = "medium"
+    known_ages: list[ComponentAge] = Field(default_factory=list, max_length=20)
+
+
+class Occupancy(BaseModel):
+    """House hacking: live in one unit (or the whole house) first, then rent it."""
+    owner_occupied: bool = False
+    months: int = Field(12, ge=1, le=480, description="How long you live there.")
+    rent_saved: float | None = Field(None, ge=0, description="Housing cost you avoid, $/mo. Default: that unit's rent.")
 
 
 class Purchase(BaseModel):
@@ -80,13 +111,19 @@ class Rehab(BaseModel):
 
 
 class Loan(BaseModel):
+    type: Literal["conventional", "dscr", "commercial", "fha"] | None = Field(
+        None, description="Default: conventional for 1-4 units, commercial for 5+.")
+    credit_score: int = Field(740, ge=300, le=850)
     down_payment_pct: float = Field(0.25, ge=0, le=1, description="1.0 = all-cash purchase.")
-    rate: float = Field(0.07, ge=0, le=0.3)
-    term_years: int = Field(30, ge=1, le=40)
+    rate: float | None = Field(None, ge=0, le=0.3,
+                               description="Your quote. Blank: priced from the weekly market rate.")
+    base_rate: float | None = Field(None, ge=0, le=0.3, description="Override the weekly 30-yr market rate.")
+    term_years: int | None = Field(None, ge=1, le=40, description="Amortization. Default 30 (commercial 25).")
+    balloon_years: int | None = Field(None, ge=1, le=40, description="Commercial: refinance due. Default 10.")
     points_pct: float = Field(0, ge=0, le=0.1)
     lender_fees: float | None = Field(None, ge=0, description="Origination, underwriting, appraisal.")
-    pmi_rate: float = Field(0.0075, ge=0, le=0.05,
-                            description="Annual, % of loan; charged only while loan > 78% of value.")
+    pmi_rate: float | None = Field(None, ge=0, le=0.05,
+                                   description="Annual % of loan. Blank: by credit score and down payment.")
 
 
 class Management(BaseModel):
@@ -110,6 +147,7 @@ class Operations(BaseModel):
     property_tax_annual: float | None = Field(None, ge=0, description="After reassessment at purchase.")
     property_tax_rate: float | None = Field(None, ge=0, le=0.1, description="Effective rate on price.")
     insurance_annual: float | None = Field(None, ge=0, description="Landlord (DP-3) policy quote.")
+    flood_insurance_annual: float = Field(0, ge=0, description="Required in FEMA flood zones A/V.")
     utilities_monthly: float | None = Field(None, ge=0, description="Landlord-paid utilities.")
     other_expenses_annual: float | None = Field(None, ge=0, description="Accounting, licenses, pest, lawn.")
     replacement_cost_psf: float = Field(160, gt=0, le=2000,
@@ -119,6 +157,8 @@ class Operations(BaseModel):
     known: list[str] = Field(default_factory=list, max_length=20,
                              description="Lines that are quotes/actuals (no estimate allowance): "
                                          "property_tax, insurance, hoa, utilities, other, closing, inspection.")
+    compliance: dict[str, bool] = Field(default_factory=dict,
+                                        description="Turn checklist items on/off; unset = on when it applies.")
 
 
 class Growth(BaseModel):
@@ -127,9 +167,10 @@ class Growth(BaseModel):
     rent: float = Field(0.03, ge=-0.2, le=0.3, description="CPI rent of primary residence.")
     appreciation: float | None = Field(None, ge=-0.2, le=0.3, description="Default: zip-adjusted long run.")
     property_tax: float | None = Field(None, ge=-0.2, le=0.3, description="Default: = appreciation.")
-    insurance: float = Field(0.05, ge=-0.2, le=0.5)
+    insurance: float | None = Field(None, ge=-0.2, le=0.5, description="Default: zip trend, else 5%.")
     maintenance: float = Field(0.035, ge=-0.2, le=0.3, description="Construction labor + materials.")
-    hoa: float = Field(0.04, ge=-0.2, le=0.3)
+    hoa: float | None = Field(None, ge=-0.2, le=0.3, description="Default: your HOA's own history, else "
+                                                                 "its cost mix (insurance + upkeep).")
     utilities: float = Field(0.035, ge=-0.2, le=0.3)
 
 
@@ -166,6 +207,8 @@ class DealInput(BaseModel):
     property: Property
     purchase: Purchase
     rehab: Rehab | None = None
+    components: Components = Field(default_factory=Components)
+    occupancy: Occupancy = Field(default_factory=Occupancy)
     loan: Loan = Field(default_factory=Loan)
     management: Management = Field(default_factory=Management)
     operations: Operations = Field(default_factory=Operations)
@@ -173,6 +216,12 @@ class DealInput(BaseModel):
     tax: TaxProfile = Field(default_factory=TaxProfile)
     exit: Exit = Field(default_factory=Exit)
     targets: Targets = Field(default_factory=Targets)
+
+    @model_validator(mode="after")
+    def _default_loan_type(self) -> DealInput:
+        if self.loan.type is None:
+            self.loan.type = "commercial" if self.property.property_type is PropertyType.MULTI_5_PLUS else "conventional"
+        return self
 
 
 # --------------------------------------------------------------------------- #
@@ -200,7 +249,8 @@ class YearRow(BaseModel):
     leasing: float
     upkeep: float          # age-based repairs + capex reserve
     turnover: float
-    known_repairs: float
+    known_repairs: float   # one-time items: inspection repairs, component replacements, assessments
+    compliance: float      # recurring regulatory costs
     owner_time: float      # non-cash; only when you value your time
     holding: float         # rehab-period utilities
     opex: float
@@ -210,6 +260,7 @@ class YearRow(BaseModel):
     principal: float
     pmi: float
     refi_cash_out: float
+    housing_saved: float = 0   # house hack: rent you don't pay elsewhere while living there
     cash_flow: float       # before tax
     taxable_income: float = 0
     tax: float = 0         # incremental tax; negative = savings
@@ -231,6 +282,7 @@ class Acquisition(BaseModel):
     seller_credits: float
     rehab: float
     repairs_at_purchase: float
+    compliance_costs: float = 0
     total_cash_needed: float
     lender_reserves: float  # liquidity lenders expect (6 months PITI), not a cost
 
@@ -269,6 +321,7 @@ class Metrics(BaseModel):
     irr_after_tax: float | None
     equity_multiple: float
     cash_left_in_deal: float
+    house_hack_monthly: float | None = None   # your net monthly cost (or income) while living there
 
 
 class ReturnBreakdown(BaseModel):
@@ -301,6 +354,58 @@ class Offer(BaseModel):
     summary: str
     rule_70: float | None = None    # distressed: 70% of ARV minus rehab
     targets: list[TargetCheck]
+
+
+class Financing(BaseModel):
+    loan_type: str
+    base_rate: float
+    base_as_of: str
+    rate: float
+    rate_steps: list[Assumption]       # how the rate was built
+    mortgage_insurance: float          # annual % (PMI or FHA MIP)
+    mortgage_insurance_note: str
+    max_ltv: float | None
+    eligible: bool
+    notes: list[str]
+
+
+class DownPaymentOption(BaseModel):
+    down_pct: float
+    eligible: bool
+    note: str
+    rate: float | None = None
+    mortgage_insurance: float | None = None
+    cash_needed: float | None = None
+    monthly_cash_flow: float | None = None
+    cash_on_cash: float | None = None
+    irr_after_tax: float | None = None
+
+
+class ExitYear(BaseModel):
+    year: int
+    value: float
+    loan_balance: float
+    profit_if_sold: float       # after selling costs and all taxes, net of cash invested
+    irr_if_sold: float | None
+    multiple_if_sold: float
+    wealth_if_kept: float       # equity + after-tax cash collected - cash invested (no sale)
+
+
+class ComponentRow(BaseModel):
+    name: str
+    age: float | None           # None: unknown, handled by the age-based curve
+    life: float
+    cost_today: float
+    next_replacement_year: int | None   # 0 = needed at purchase
+
+
+class ComplianceRow(BaseModel):
+    key: str
+    label: str
+    included: bool
+    one_time: float
+    annual: float
+    note: str
 
 
 class Scenario(BaseModel):
@@ -336,6 +441,11 @@ class Result(BaseModel):
     offer: Offer
     metrics: Metrics
     returns: ReturnBreakdown
+    financing: Financing
+    down_payment_options: list[DownPaymentOption]
+    exit_timeline: list[ExitYear]
+    components: list[ComponentRow]
+    compliance: list[ComplianceRow]
     acquisition: Acquisition
     stabilized: YearRow
     years: list[YearRow]

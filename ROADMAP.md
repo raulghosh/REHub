@@ -19,12 +19,23 @@ divided by equity, and rent was backed out of the price it was then judged again
 - Bundled zip-code market data (Redfin, Realtor.com), refresh script with optional Census ACS.
 - Web front end (`sfr-eval serve`), CLI (`evaluate`, `screen`), JSON API, tests.
 
+## Done (v0.2)
+
+- Mortgage rate priced from the weekly market rate, credit score, LTV and occupancy;
+  conventional, DSCR, commercial (balloon) and FHA loans; PMI and FHA MIP.
+- Down-payment comparison from 3.5% to 30% with program limits; house hacking.
+- Sell-or-keep table for every year until the loan is paid off.
+- Roof sized by footprint, pitch and material; known-age component schedule.
+- Regulatory checklist; HOA dues history, reserves and special assessments; flood insurance.
+
 ## Next
 
 - Run the data build with Census access to bundle rent-by-bedroom, tax-rate and vacancy
-  defaults.
+  defaults; refresh the mortgage-rate snapshot.
+- Zip-level homeowners premiums and their 2018-2022 trend (Treasury FIO data, mirrored by the
+  Consumer Federation of America) as the insurance default; NFIP flood premiums by zip.
+- Verify the LLPA grid against the current Fannie Mae matrix PDF.
 - State property-tax assessment caps (CA 2%, OR 3%, FL non-homestead 10%, ...) as defaults.
-- House hacking: owner-occupy one unit of a 2-4 (FHA/conventional terms, partial rental tax
-  treatment).
+- Section 121 exclusion when a house hack is sold within 3 years of moving out.
 - Regional rebuild-cost factors so upkeep and insurance defaults track local labor costs.
 - Save and compare multiple deals side by side; export a one-page PDF memo.

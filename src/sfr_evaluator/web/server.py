@@ -19,6 +19,7 @@ from pydantic import ValidationError
 
 from ..analysis import evaluate
 from ..schemas import DealInput, Rehab
+from ..underwrite import rates
 
 INDEX = Path(__file__).with_name("index.html")
 MAX_BODY = 256 * 1024
@@ -79,6 +80,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
+    rates.LIVE = True   # refresh the weekly market rate when online; falls back to the snapshot
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"Deal evaluator running on http://{host}:{port}  (Ctrl+C to stop)", file=sys.stderr)
     try:

@@ -68,6 +68,10 @@ input:invalid { border-color: var(--crit); }
 .check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
 .check input { width: auto; margin-top: 3px; }
 .check small { display: block; color: var(--muted); font-size: 12px; }
+.comp-item { padding: 6px 0; border-bottom: 1px solid var(--grid); }
+.scroll { max-height: 340px; overflow-y: auto; }
+tr.mark td { background: color-mix(in srgb, var(--s1) 10%, transparent); }
+.muted { color: var(--muted); }
 .hint { margin: 0; font-size: 12px; color: var(--muted); }
 .seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .seg label { flex: 1; text-align: center; padding: 6px 4px; cursor: pointer; font-size: 13px; }
@@ -191,6 +195,19 @@ table.data td.wrap { white-space: normal; }
     </div>
   </details>
 
+  <details class="sec">
+    <summary>HOA <small>dues history &amp; reserves</small></summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f wide"><span>Past monthly dues, oldest first</span><input id="hoaHistory" placeholder="e.g. 310, 330, 355, 380"></label>
+        <label class="f"><span>Reserves funded (%)</span><input data-p="property.hoa_reserve_funded_pct" data-t="pct" type="number" min="0" step="any" placeholder="from reserve study"></label>
+        <label class="f"><span>Special assessment ($)</span><input data-p="property.hoa_special_assessment" type="number" min="0" step="any"></label>
+        <label class="f"><span>…due in year</span><input data-p="property.hoa_assessment_year" type="number" min="0" max="40" step="any"></label>
+      </div>
+      <p class="hint">The dues history sets this HOA's own growth rate, fading to the long run (insurance + upkeep). Reserves under 30% funded usually mean a special assessment.</p>
+    </div>
+  </details>
+
   <details class="sec" open>
     <summary>Purchase &amp; closing</summary>
     <div class="sec-body">
@@ -209,8 +226,29 @@ table.data td.wrap { white-space: normal; }
           <tbody></tbody>
         </table>
         <div class="row-actions"><button type="button" id="addRepair">+ Add repair</button></div>
-        <p class="hint">Only items beyond normal wear (e.g. a roof past its life). Year 0 = at purchase: ask for a credit.</p>
+        <p class="hint">Only items beyond normal wear (e.g. a foundation crack). Year 0 = at purchase: ask for a credit.</p>
       </div>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>Components <small>ages from the inspection</small></summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f"><span>Roof material</span>
+          <select data-p="components.roof_material">
+            <option value="asphalt_3tab">Asphalt 3-tab</option><option value="architectural">Architectural shingle</option>
+            <option value="metal">Metal</option><option value="tile">Tile</option><option value="slate">Slate</option>
+            <option value="flat">Flat / membrane</option></select></label>
+        <label class="f"><span>Roof pitch</span>
+          <select data-p="components.roof_pitch"><option value="low">Low</option><option value="medium">Medium</option><option value="steep">Steep</option></select></label>
+        <label class="f"><span>Stories</span><input data-p="property.stories" type="number" min="1" max="60" step="any"></label>
+      </div>
+      <table class="edit" id="components">
+        <thead><tr><th>Component</th><th>Age (yrs)</th><th>Cost $</th><th>Life</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="hint">Leave an age blank if unknown: the age-based upkeep covers it. A known age gets a real replacement date and cost (roof sized from footprint, pitch and material). Blank cost and life use typical 2026 figures, shown grey.</p>
     </div>
   </details>
 
@@ -240,16 +278,31 @@ table.data td.wrap { white-space: normal; }
   <details class="sec" open>
     <summary>Financing</summary>
     <div class="sec-body">
+      <div class="grid">
+        <label class="f"><span>Loan type</span>
+          <select data-p="loan.type" id="loanType">
+            <option value="conventional">Conventional</option><option value="dscr">DSCR (qualify on rent)</option>
+            <option value="commercial">Commercial (5+ units)</option><option value="fha">FHA (you live there)</option>
+          </select></label>
+        <label class="f"><span>Credit score</span><input data-p="loan.credit_score" type="number" min="300" max="850" step="any"></label>
+      </div>
       <label class="check"><input type="checkbox" id="allCash"><span>All-cash purchase</span></label>
       <div id="loanFields" class="grid">
         <label class="f"><span>Down payment (%)</span><input data-p="loan.down_payment_pct" data-t="pct" type="number" min="0" max="100" step="any"></label>
-        <label class="f"><span>Interest rate (%)</span><input data-p="loan.rate" data-t="pct" type="number" min="0" step="any"></label>
-        <label class="f"><span>Term (yrs)</span><input data-p="loan.term_years" type="number" min="1" max="40" step="any"></label>
+        <label class="f"><span>Your rate quote (%)</span><input data-p="loan.rate" data-t="pct" type="number" min="0" step="any" placeholder="auto: priced for you"></label>
+        <label class="f"><span>Market rate (%)</span><input data-p="loan.base_rate" data-t="pct" type="number" min="0" step="any" id="baseRate" placeholder="auto: weekly 30-yr"></label>
+        <label class="f"><span>Amortization (yrs)</span><input data-p="loan.term_years" type="number" min="1" max="40" step="any" placeholder="auto"></label>
+        <label class="f" id="balloonField"><span>Balloon (yrs)</span><input data-p="loan.balloon_years" type="number" min="1" max="40" step="any" placeholder="auto: 10"></label>
         <label class="f"><span>Points (% of loan)</span><input data-p="loan.points_pct" data-t="pct" type="number" min="0" step="any"></label>
         <label class="f"><span>Lender fees + appraisal ($)</span><input data-p="loan.lender_fees" type="number" min="0" step="any" placeholder="auto"></label>
-        <label class="f"><span>PMI (%/yr if &lt;20% down)</span><input data-p="loan.pmi_rate" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>Mortgage insurance (%/yr)</span><input data-p="loan.pmi_rate" data-t="pct" type="number" min="0" step="any" placeholder="auto"></label>
       </div>
-      <p class="hint">Use your lender's quote: investment-property rates run above owner-occupied.</p>
+      <label class="check"><input type="checkbox" data-p="occupancy.owner_occupied" id="ownerOn"><span>I'll live in it first (house hack)<small>Owner-occupied loans allow less down. Your unit's rent is replaced by the rent you save.</small></span></label>
+      <div id="ownerFields" class="grid">
+        <label class="f"><span>Months you live there</span><input data-p="occupancy.months" type="number" min="1" step="any"></label>
+        <label class="f"><span>Rent you save ($/mo)</span><input data-p="occupancy.rent_saved" type="number" min="0" step="any" placeholder="auto: your unit's rent"></label>
+      </div>
+      <p class="hint">Leave the rate blank and it's priced from the weekly market rate, your credit score, down payment and occupancy. A lender quote overrides it.</p>
     </div>
   </details>
 
@@ -288,12 +341,21 @@ table.data td.wrap { white-space: normal; }
         <label class="f"><span>Property tax ($/yr) <label class="q"><input type="checkbox" data-known="property_tax">quote</label></span><input data-p="operations.property_tax_annual" type="number" min="0" step="any" placeholder="auto"></label>
         <label class="f"><span>…or tax rate (% of price)</span><input data-p="operations.property_tax_rate" data-t="pct" type="number" min="0" step="any" placeholder="auto"></label>
         <label class="f"><span>Insurance ($/yr) <label class="q"><input type="checkbox" data-known="insurance">quote</label></span><input data-p="operations.insurance_annual" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Flood insurance ($/yr)</span><input data-p="operations.flood_insurance_annual" type="number" min="0" step="any"></label>
         <label class="f"><span>Owner-paid utilities ($/mo) <label class="q"><input type="checkbox" data-known="utilities">quote</label></span><input data-p="operations.utilities_monthly" type="number" min="0" step="any" placeholder="auto"></label>
         <label class="f"><span>Other ($/yr) <label class="q"><input type="checkbox" data-known="other">quote</label></span><input data-p="operations.other_expenses_annual" type="number" min="0" step="any" placeholder="auto"></label>
         <label class="f"><span>Rebuild cost ($/sqft)</span><input data-p="operations.replacement_cost_psf" type="number" min="1" step="any"></label>
         <label class="f wide"><span>Upkeep override (% of rebuild cost/yr)</span><input data-p="operations.upkeep_pct_override" data-t="pct" type="number" min="0" step="any" placeholder="auto: rises with the home's age"></label>
       </div>
       <p class="hint">Property tax is reassessed at your price, not the seller's bill. Tick "quote" for figures you have in writing: estimates get the allowance below.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>Regulatory checklist</summary>
+    <div class="sec-body">
+      <div id="complianceList"><p class="hint">Loading…</p></div>
+      <p class="hint">Rules that usually apply to this property, with typical costs. Local rules vary: untick what doesn't apply.</p>
     </div>
   </details>
 
@@ -305,9 +367,9 @@ table.data td.wrap { white-space: normal; }
         <label class="f"><span>Rent growth (CPI rent)</span><input data-p="growth.rent" data-t="pct" type="number" step="any"></label>
         <label class="f"><span>Appreciation</span><input data-p="growth.appreciation" data-t="pct" type="number" step="any" placeholder="auto: zip trend"></label>
         <label class="f"><span>Property tax growth</span><input data-p="growth.property_tax" data-t="pct" type="number" step="any" placeholder="auto: = appreciation"></label>
-        <label class="f"><span>Insurance growth</span><input data-p="growth.insurance" data-t="pct" type="number" step="any"></label>
+        <label class="f"><span>Insurance growth</span><input data-p="growth.insurance" data-t="pct" type="number" step="any" placeholder="auto: 5%"></label>
         <label class="f"><span>Repair cost growth</span><input data-p="growth.maintenance" data-t="pct" type="number" step="any"></label>
-        <label class="f"><span>HOA growth</span><input data-p="growth.hoa" data-t="pct" type="number" step="any"></label>
+        <label class="f"><span>HOA growth</span><input data-p="growth.hoa" data-t="pct" type="number" step="any" placeholder="auto: history / mix"></label>
         <label class="f"><span>Utilities growth</span><input data-p="growth.utilities" data-t="pct" type="number" step="any"></label>
       </div>
       <p class="hint">Annual %, long-run. Each line grows with its own index: rent with CPI rent (~3.3%/yr since 1990), insurance faster than CPI, repairs with construction labor.</p>
@@ -449,6 +511,38 @@ const readRepairs = () => $$("#repairs tbody tr").map(tr => ({
   year: Math.round(+tr.querySelector("[name=year]").value || 0),
 })).filter(r => r.cost > 0);
 
+const COMPONENTS = [["roof", "Roof"], ["hvac", "HVAC"], ["water_heater", "Water heater"], ["appliances", "Appliances"],
+  ["flooring", "Flooring"], ["interior_paint", "Interior paint"], ["exterior", "Exterior paint / siding"],
+  ["windows", "Windows & doors"], ["electrical", "Electrical"], ["plumbing", "Plumbing & sewer"], ["kitchen_bath", "Kitchen & bath"]];
+function setComponents(known) {
+  const byKey = Object.fromEntries(known.map(k => [k.key, k]));
+  $("#components tbody").replaceChildren(...COMPONENTS.map(([key, label]) => {
+    const k = byKey[key] || {};
+    const num = (name, v) => h("input", { name, type: "number", min: 0, step: "any", value: v ?? "", "aria-label": `${label} ${name}` });
+    return h("tr", { "data-key": key }, h("td", null, label), h("td", null, num("age", k.age)),
+      h("td", null, num("cost", k.cost)), h("td", null, num("life", k.life)));
+  }));
+}
+const readComponents = () => $$("#components tbody tr").map(tr => {
+  const v = n => tr.querySelector(`[name=${n}]`).value.trim();
+  if (v("age") === "") return null;
+  return { key: tr.dataset.key, age: +v("age"), ...(v("cost") !== "" ? { cost: +v("cost") } : {}), ...(v("life") !== "" ? { life: +v("life") } : {}) };
+}).filter(Boolean);
+const readHistory = () => $("#hoaHistory").value.split(/[,\s]+/).map(Number).filter(x => x > 0);
+
+let COMPLIANCE = {};
+function renderCompliance(rows) {
+  const box = $("#complianceList");
+  if (!rows.length) { box.replaceChildren(h("p", { class: "hint" }, "Nothing on the checklist applies to this property.")); return; }
+  box.replaceChildren(...rows.map(c => {
+    const cb = h("input", { type: "checkbox", "data-compliance": c.key });
+    cb.checked = c.included;
+    cb.addEventListener("change", () => { COMPLIANCE[c.key] = cb.checked; });
+    const cost = [c.one_time ? `${money(c.one_time)} at purchase` : null, c.annual ? `${money(c.annual)}/yr` : null].filter(Boolean).join(" + ");
+    return h("label", { class: "check comp-item" }, cb, h("span", null, c.label, h("small", null, `${cost}. ${c.note}`)));
+  }));
+}
+
 function fill(deal) {
   const src = structuredClone(deal);
   $("#rehabOn").checked = !!src.rehab;
@@ -464,6 +558,9 @@ function fill(deal) {
   if ($("#allCash").checked) $("[data-p='loan.down_payment_pct']").value = 25;
   setUnits(src.property.units);
   setRepairs(src.purchase.known_repairs || []);
+  setComponents(src.components?.known_ages || []);
+  $("#hoaHistory").value = (src.property.hoa_history || []).join(", ");
+  COMPLIANCE = { ...(src.operations?.compliance || {}) };
   for (const el of $$("[data-known]", form)) el.checked = (src.operations?.known || []).includes(el.dataset.known);
   sync();
 }
@@ -485,6 +582,9 @@ function collect() {
   deal.property.units = readUnits();
   deal.purchase.known_repairs = readRepairs();
   setPath(deal, "operations.known", $$("[data-known]:checked", form).map(el => el.dataset.known));
+  setPath(deal, "operations.compliance", COMPLIANCE);
+  setPath(deal, "components.known_ages", readComponents());
+  deal.property.hoa_history = readHistory();
   if (!$("#rehabOn").checked) delete deal.rehab;
   return deal;
 }
@@ -493,6 +593,8 @@ function sync() {
   $("#rehabFields").hidden = !$("#rehabOn").checked;
   $("#refiFields").hidden = !$("#refiOn").checked;
   $("#loanFields").hidden = $("#allCash").checked;
+  $("#balloonField").hidden = $("#loanType").value !== "commercial";
+  $("#ownerFields").hidden = !$("#ownerOn").checked;
   const self = $("input[name=mode][value=self]").checked;
   $("#pmFields").hidden = self;
   $("#selfFields").hidden = !self;
@@ -590,7 +692,8 @@ function kpiCard(r) {
       tile("Cash to close", money(a.total_cash_needed), a.lender_reserves ? `+ ${money(a.lender_reserves)} reserves` : "all cash"),
       tile("Break-even occupancy", pct(m.break_even_occupancy, 0), "to cover costs + mortgage"),
       tile("Rent / price", pct(m.rent_to_price, 2), `GRM ${m.gross_rent_multiplier.toFixed(1)}`),
-      tile("Upkeep", `${pct(m.upkeep_pct_of_rent, 0)} of rent`, `${pct(m.upkeep_pct_of_value)} of value/yr`)));
+      tile("Upkeep", `${pct(m.upkeep_pct_of_rent, 0)} of rent`, `${pct(m.upkeep_pct_of_value)} of value/yr`),
+      m.house_hack_monthly == null ? null : tile("While you live there", `${money(m.house_hack_monthly)}/mo`, "net of rent from the other units, before the rent you save")));
 }
 
 function compareCard(list) {
@@ -602,11 +705,66 @@ function compareCard(list) {
       h("div", { class: "sub" }, `Cash-on-cash ${sc.cash_on_cash == null ? "∞" : pct(sc.cash_on_cash)} · after-tax IRR ${pct(sc.irr_after_tax)}`)))));
 }
 
+function financeCard(r) {
+  const f = r.financing;
+  if (f.loan_type === "all cash") return card("Your loan", "all cash", h("p", { class: "note" }, "No loan: no rate, no mortgage insurance."));
+  const rows = f.rate_steps.map(st => ({ cells: [st.label, st.value] }));
+  rows.push({ cls: "total", cells: ["Rate used", pct(f.rate, 3)] });
+  if (f.mortgage_insurance) rows.push({ cells: [f.mortgage_insurance_note, `${pct(f.mortgage_insurance, 2)}/yr`] });
+  return card("Your loan", `${f.loan_type} · market rate as of ${f.base_as_of}`, table(["", ""], rows),
+    h("p", { class: "note" }, f.notes.join(" ")));
+}
+
+function dpCard(r) {
+  const mine = r.acquisition.price ? r.acquisition.down_payment / r.acquisition.price : 1;
+  const head = ["Down", "Rate", "Mortgage ins.", "Cash to close", "Cash flow/mo", "Cash-on-cash", "After-tax IRR"];
+  const rows = r.down_payment_options.map(o => {
+    const here = Math.abs(o.down_pct - mine) < 0.001;
+    const first = h("td", null, pct(o.down_pct, o.down_pct < 0.1 ? 1 : 0), here ? " (yours)" : "");
+    if (!o.eligible) return h("tr", null, first, h("td", { colspan: 6, class: "src muted" }, o.note));
+    return h("tr", { class: here ? "mark" : null }, first, ...[pct(o.rate, 2), o.mortgage_insurance ? `${pct(o.mortgage_insurance, 2)}/yr` : "none",
+      money(o.cash_needed), money(o.monthly_cash_flow), o.cash_on_cash == null ? "∞" : pct(o.cash_on_cash), pct(o.irr_after_tax)]
+      .map((v, i) => h("td", { class: i === 3 && o.monthly_cash_flow < 0 ? "neg" : null }, v)));
+  });
+  return card("Down payment options", "same deal, rate priced for each",
+    h("div", { class: "tbl-wrap" }, h("table", { class: "data" },
+      h("thead", null, h("tr", null, head.map(c => h("th", { scope: "col" }, c)))), h("tbody", null, rows))),
+    h("p", { class: "note" }, "Less down means more leverage, a higher rate and mortgage insurance. Below 15% (1 unit) or 25% (2-4 units) is only possible if you live there."));
+}
+
+function holdCard(r) {
+  const tl = r.exit_timeline, plan = r.years.length;
+  const best = tl.filter(e => e.irr_if_sold != null).reduce((a, e) => (a && a.irr_if_sold >= e.irr_if_sold ? a : e), null);
+  const rows = tl.map(e => h("tr", { class: e.year === plan ? "mark" : null },
+    ...[`${e.year}${e.year === plan ? " (plan)" : ""}${best && e.year === best.year ? " · best IRR" : ""}${e.loan_balance < 1 && e.year > 1 && tl[e.year - 2].loan_balance >= 1 ? " · paid off" : ""}`,
+      money(e.value), money(e.loan_balance), money(e.profit_if_sold), pct(e.irr_if_sold), times(e.multiple_if_sold), money(e.wealth_if_kept)]
+      .map((v, i) => h("td", { class: (i === 3 && e.profit_if_sold < 0) || (i === 6 && e.wealth_if_kept < 0) ? "neg" : null }, v))));
+  const last = tl.at(-1);
+  return card("Sell or keep?", `every year until the loan is paid off (year ${last.year})`,
+    h("div", { class: "legend" },
+      h("span", null, h("i", { class: "key", style: "background: var(--s1)" }), "Profit if you sell that year (after tax)"),
+      h("span", null, h("i", { class: "key", style: "background: var(--s2)" }), "Wealth if you keep it")),
+    h("div", { class: "chart", id: "holdChart" }),
+    h("div", { class: "tbl-wrap scroll" }, h("table", { class: "data" },
+      h("thead", null, h("tr", null, ["Year", "Value", "Loan", "Profit if sold", "IRR if sold", "Multiple", "Wealth if kept"].map(c => h("th", { scope: "col" }, c)))),
+      h("tbody", null, rows))),
+    h("p", { class: "note" }, `Profit if sold: after selling costs, recapture and capital-gains tax, net of the cash you put in. Wealth if kept: equity plus after-tax cash collected, minus your cash in, with no sale; heirs get a stepped-up basis, so that gain may never be taxed.${best ? ` Highest IRR if sold in year ${best.year}: ${pct(best.irr_if_sold)}.` : ""}`));
+}
+
+function componentsCard(rows) {
+  return card("Components", "known ages get real replacement dates",
+    table(["", "Age", "Life", "Next replacement", "Cost today"], rows.map(c => ({ cells: [
+      c.name, c.age == null ? "unknown" : `${c.age} yrs`, `${c.life} yrs`,
+      c.age == null ? "in the age-based upkeep" : c.next_replacement_year === 0 ? "now (at purchase)" : `year ${c.next_replacement_year}`,
+      c.cost_today ? money(c.cost_today) : "HOA"] }))));
+}
+
 function cashCard(a) {
   const rows = [
     ["Down payment", a.down_payment], ["Closing costs", a.closing_costs], ["Lender fees & points", a.lender_costs],
     ["Inspections", a.inspections], ["Other costs", a.other_costs], ["Seller credits", -a.seller_credits],
-    ["Rehab incl. contingency", a.rehab], ["Repairs at purchase", a.repairs_at_purchase],
+    ["Rehab incl. contingency", a.rehab], ["Repairs & replacements at purchase", a.repairs_at_purchase],
+    ["Regulatory compliance", a.compliance_costs],
   ].filter(([, v]) => Math.abs(v) > 0.5).map(([k, v]) => ({ cells: [k, v] }));
   rows.push({ cls: "total", cells: ["Cash to close", a.total_cash_needed] });
   return card("Cash to close", a.loan_amount ? `loan ${money(a.loan_amount)}` : "all cash",
@@ -619,7 +777,8 @@ function proformaCard(s, r) {
     ["Gross rent", s.gross_rent], ["Other income", s.other_income], ["Vacancy & unpaid rent", -s.vacancy_loss],
     ["Effective income", s.egi, "total"], ["Property tax", -s.property_tax], ["Insurance", -s.insurance], ["HOA", -s.hoa],
     ["Utilities", -s.utilities], ["Other", -s.other], ["Management", -s.management], ["Leasing & renewals", -s.leasing],
-    ["Upkeep (repairs + capex reserve)", -s.upkeep], ["Turnover", -s.turnover], ["Your time", -s.owner_time],
+    ["Upkeep (repairs + capex reserve)", -s.upkeep], ["Turnover", -s.turnover], ["Compliance", -s.compliance],
+    ["Your time", -s.owner_time],
     ["Net operating income", s.noi, "total"], ["Mortgage (P&I + PMI)", -s.debt_service], ["Cash flow", s.cash_flow, "total"],
   ].filter(([, v, c]) => c || Math.abs(v) > 0.5);
   return card("Normal-year pro forma", "estimated lines include the allowance",
@@ -694,11 +853,21 @@ function render(r) {
   const m = r.market;
   $("#zipInfo").textContent = !m ? "Zip not in the market data: enter the market value and appreciation yourself."
     : `${m.city}, ${m.state}: ${m.ppsf ? `sold $${m.ppsf.toFixed(0)}/sqft for this type (${m.sales_12m} sales, 12 mo), value about ${money(r.metrics.market_value)}` : `only ${m.sales_12m ?? 0} sales in 12 months, too few to value`}.`;
+  $("#baseRate").placeholder = `auto: ${pct(r.financing.base_rate, 2)} (${r.financing.base_as_of})`;
+  for (const [i, c] of r.components.entries()) {
+    const tr = $$("#components tbody tr")[i];
+    if (!tr) continue;
+    tr.querySelector("[name=cost]").placeholder = c.cost_today ? Math.round(c.cost_today) : "HOA";
+    tr.querySelector("[name=life]").placeholder = c.life;
+  }
+  renderCompliance(r.compliance);
   out.replaceChildren(...[verdictCard(r), warningsCard(r.warnings), targetsCard(r.offer), kpiCard(r),
     compareCard(r.management),
+    h("div", { class: "split" }, financeCard(r), cashCard(r.acquisition)),
+    dpCard(r), holdCard(r),
     h("div", { class: "split" }, equityCard(r), breakdownCard(r.returns)),
-    h("div", { class: "split" }, cashCard(r.acquisition), proformaCard(r.stabilized, r)),
-    yearsCard(r.years), h("div", { class: "split" }, saleCard(r.sale), stressCard(r.stress)),
+    h("div", { class: "split" }, proformaCard(r.stabilized, r), stressCard(r.stress)),
+    yearsCard(r.years), h("div", { class: "split" }, saleCard(r.sale), componentsCard(r.components)),
     assumptionsCard(r.assumptions), marketCard(r.market)].filter(Boolean));
   drawCharts();
 }
@@ -724,49 +893,49 @@ function showTip(box, tip, x, y, title, rows) {
   tip.style.top = `${Math.max(0, y - 10)}px`;
 }
 
-function drawEquity(r) {
-  const box = $("#equityChart");
+function niceMin(v) { return v >= 0 ? 0 : -niceMax(-v); }
+
+function drawLines(box, xs, series, opts = {}) {
   if (!box) return;
-  const years = [0, ...r.years.map(y => y.year)];
-  const value = [r.metrics.market_value, ...r.years.map(y => y.value)];
-  const loan = [r.acquisition.loan_amount, ...r.years.map(y => y.loan_balance)];
-  const hasLoan = loan.some(v => v > 1);
-  const W = Math.max(280, box.clientWidth), H = 220, m = { l: 48, r: 14, t: 10, b: 24 };
-  const ymax = niceMax(Math.max(...value, ...loan));
-  const x = i => m.l + (W - m.l - m.r) * i / (years.length - 1);
-  const y = v => m.t + (H - m.t - m.b) * (1 - v / ymax);
+  const all = series.flatMap(se => se.values);
+  const W = Math.max(280, box.clientWidth), H = 220, m = { l: 52, r: 14, t: 12, b: 24 };
+  const ymax = niceMax(Math.max(...all, 1)), ymin = niceMin(Math.min(...all, 0));
+  const x = i => m.l + (W - m.l - m.r) * i / Math.max(1, xs.length - 1);
+  const y = v => m.t + (H - m.t - m.b) * (1 - (v - ymin) / (ymax - ymin));
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", tabindex: 0,
-    "aria-label": `Property value grows from ${money(value[0])} to ${money(value.at(-1))}; loan balance falls from ${money(loan[0])} to ${money(loan.at(-1))}. Use left and right arrow keys to read each year.` });
+    "aria-label": `${opts.label} Use left and right arrow keys to read each year.` });
   for (let k = 0; k <= 4; k++) {
-    const v = ymax * k / 4;
-    svg.append(s("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: k ? "gridline" : "baseline" }));
+    const v = ymin + (ymax - ymin) * k / 4;
+    svg.append(s("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: "gridline" }));
     svg.append(s("text", { x: m.l - 6, y: y(v) + 4, "text-anchor": "end" }, usdC.format(v)));
   }
-  const step = Math.ceil(years.length / 8);
-  years.forEach((yr, i) => { if (i % step === 0 || i === years.length - 1) svg.append(s("text", { x: x(i), y: H - 6, "text-anchor": "middle" }, `Yr ${yr}`)); });
+  svg.append(s("line", { x1: m.l, x2: W - m.r, y1: y(0), y2: y(0), class: "baseline" }));
+  const step = Math.ceil(xs.length / 8);
+  xs.forEach((yr, i) => { if (i % step === 0 || i === xs.length - 1) svg.append(s("text", { x: x(i), y: H - 6, "text-anchor": "middle" }, `Yr ${yr}`)); });
   const path = arr => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
-  if (hasLoan) {
-    const area = path(value) + loan.map((v, i) => `L${x(loan.length - 1 - i).toFixed(1)},${y(loan[loan.length - 1 - i]).toFixed(1)}`).join("") + "Z";
-    svg.append(s("path", { d: area, fill: "var(--s1)", "fill-opacity": 0.1, stroke: "none" }));
-    svg.append(s("path", { d: path(loan), fill: "none", stroke: "var(--s2)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  if (opts.fillBetween && series.length > 1) {
+    const [a, b] = series;
+    const back = b.values.map((v, i) => `L${x(b.values.length - 1 - i).toFixed(1)},${y(b.values[b.values.length - 1 - i]).toFixed(1)}`).join("");
+    svg.append(s("path", { d: path(a.values) + back + "Z", fill: a.color, "fill-opacity": 0.1, stroke: "none" }));
   }
-  svg.append(s("path", { d: path(value), fill: "none", stroke: "var(--s1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
-  const last = years.length - 1;
-  svg.append(s("circle", { cx: x(last), cy: y(value[last]), r: 4, fill: "var(--s1)", stroke: "var(--surface)", "stroke-width": 2 }));
-  if (hasLoan) svg.append(s("circle", { cx: x(last), cy: y(loan[last]), r: 4, fill: "var(--s2)", stroke: "var(--surface)", "stroke-width": 2 }));
-  svg.append(s("text", { x: x(last) - 8, y: y(value[last]) - 10, "text-anchor": "end", class: "ink" }, `${usdC.format(value[last])}`));
+  const last = xs.length - 1;
+  for (const se of [...series].reverse()) {
+    svg.append(s("path", { d: path(se.values), fill: "none", stroke: se.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    svg.append(s("circle", { cx: x(last), cy: y(se.values[last]), r: 4, fill: se.color, stroke: "var(--surface)", "stroke-width": 2 }));
+  }
+  const top = series[0].values[last];
+  svg.append(s("text", { x: x(last) - 8, y: y(top) - 10, "text-anchor": "end", class: "ink" }, usdC.format(top)));
   const cross = s("line", { y1: m.t, y2: H - m.b, class: "cross", visibility: "hidden" });
-  svg.append(cross);
   const hit = s("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" });
-  svg.append(hit);
+  svg.append(cross, hit);
   box.replaceChildren(svg);
   const tip = tooltip(box);
   let cur = last;
   const show = i => {
     cur = i;
     cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
-    showTip(box, tip, x(i), y(value[i]), `Year ${years[i]}`, [["var(--s1)", "value", money(value[i])],
-      ...(hasLoan ? [["var(--s2)", "loan", money(loan[i])]] : []), [null, "equity", money(value[i] - loan[i])]]);
+    showTip(box, tip, x(i), y(Math.max(...series.map(se => se.values[i]))), `Year ${xs[i]}`,
+      [...series.map(se => [se.color, se.name, money(se.values[i])]), ...(opts.extra ? opts.extra(i) : [])]);
   };
   const hide = () => { cross.setAttribute("visibility", "hidden"); tip.style.display = "none"; };
   hit.addEventListener("pointermove", e => {
@@ -779,6 +948,25 @@ function drawEquity(r) {
   });
   svg.addEventListener("focus", () => show(cur));
   svg.addEventListener("blur", hide);
+}
+
+function drawEquity(r) {
+  const xs = [0, ...r.years.map(y => y.year)];
+  const value = [r.metrics.market_value, ...r.years.map(y => y.value)];
+  const loan = [r.acquisition.loan_amount, ...r.years.map(y => y.loan_balance)];
+  const hasLoan = loan.some(v => v > 1);
+  drawLines($("#equityChart"), xs, [{ name: "value", color: "var(--s1)", values: value },
+    ...(hasLoan ? [{ name: "loan", color: "var(--s2)", values: loan }] : [])], {
+    fillBetween: hasLoan, extra: i => [[null, "equity", money(value[i] - loan[i])]],
+    label: `Property value grows from ${money(value[0])} to ${money(value.at(-1))}; loan balance falls from ${money(loan[0])} to ${money(loan.at(-1))}.` });
+}
+
+function drawHold(r) {
+  const tl = r.exit_timeline;
+  const sold = tl.map(e => e.profit_if_sold), kept = tl.map(e => e.wealth_if_kept);
+  drawLines($("#holdChart"), tl.map(e => e.year), [{ name: "if sold", color: "var(--s1)", values: sold },
+    { name: "if kept", color: "var(--s2)", values: kept }], {
+    label: `If sold, after-tax profit goes from ${money(sold[0])} in year 1 to ${money(sold.at(-1))} in year ${tl.length}; kept, wealth reaches ${money(kept.at(-1))}.` });
 }
 
 function drawProfit(r) {
@@ -817,7 +1005,7 @@ function drawProfit(r) {
   box.replaceChildren(svg, tip);
 }
 
-function drawCharts() { if (LAST) { drawEquity(LAST); drawProfit(LAST); } }
+function drawCharts() { if (LAST) { drawEquity(LAST); drawHold(LAST); drawProfit(LAST); } }
 let resizeTimer = null;
 window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawCharts, 150); });
 
