@@ -1,9 +1,8 @@
-"""Command-line entry point.
+"""Command line.
 
-    sfr-eval screen --input listings.csv --assumptions config/assumptions.yaml --out queue.csv
-    sfr-eval memo   --property-id <id>  --assumptions config/assumptions.yaml
-
-Phase 4: screen and memo commands are wired and functional.
+    sfr-eval serve                                     web app on http://127.0.0.1:8000
+    sfr-eval evaluate config/sample_deal.yaml          one deal, plain-text summary (--json for all)
+    sfr-eval screen --input listings.csv --out ranked.csv [--profile config/investor_profile.yaml]
 """
 
 from __future__ import annotations
@@ -12,169 +11,128 @@ import argparse
 import csv
 import json
 import sys
-from decimal import Decimal
 from pathlib import Path
 
 import yaml
+from pydantic import ValidationError
 
-from .ingest.sources import from_csv
+from .analysis import evaluate
 from .ingest.normalize import dedup
-from .ingest.enrich import enrich
-from .rents.triangulate import from_signals
-from .underwrite.model import underwrite
-from .metrics.gates import evaluate_gates
-from .score.scorecard import rank_queue, memo as memo_text
-from .schemas import Assumptions, Property
+from .ingest.sources import from_csv
+from .metrics.returns import metrics, offer
+from .schemas import DealInput, Result
+from .underwrite.model import project, resolve
+
+VERDICT_ORDER = {"buy": 0, "negotiate": 1, "pass": 2}
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="sfr-eval", description="SFR/townhouse deal screener.")
+    p = argparse.ArgumentParser(prog="sfr-eval", description="Rental deal evaluator for individual investors.")
     sub = p.add_subparsers(dest="command", required=True)
 
-    screen = sub.add_parser("screen", help="Screen a listing file into a ranked queue.")
-    screen.add_argument("--input", required=True, help="Listing file (CSV).")
-    screen.add_argument("--assumptions", required=True, help="Assumptions YAML.")
-    screen.add_argument("--out", required=True, help="Output ranked queue (CSV).")
-    screen.add_argument("--rent-low", type=float, default=0, help="Low rent estimate ($/month).")
-    screen.add_argument("--rent-mid", type=float, default=0, help="Mid rent estimate ($/month).")
-    screen.add_argument("--rent-high", type=float, default=0, help="High rent estimate ($/month).")
-    screen.add_argument("--column-map", help="JSON file for CSV column mapping.")
+    serve = sub.add_parser("serve", help="Run the web app.")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
 
-    memo = sub.add_parser("memo", help="Render a one-page memo for one property.")
-    memo.add_argument("--property-id", required=True)
-    memo.add_argument("--address", help="Property address (for display).")
-    memo.add_argument("--assumptions", required=True)
+    ev = sub.add_parser("evaluate", help="Evaluate one deal from a YAML or JSON file.")
+    ev.add_argument("deal")
+    ev.add_argument("--json", action="store_true", help="Print the full result as JSON.")
 
+    screen = sub.add_parser("screen", help="Rank a CSV of listings by margin of safety.")
+    screen.add_argument("--input", required=True, help="Listings CSV (needs rent and price columns).")
+    screen.add_argument("--out", required=True, help="Ranked output CSV.")
+    screen.add_argument("--profile", help="Investor profile YAML: financing, management, taxes, targets.")
+    screen.add_argument("--column-map", help="JSON mapping our column names to yours.")
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-
-    if args.command == "screen":
-        return cmd_screen(args)
-    elif args.command == "memo":
-        return cmd_memo(args)
-    else:
-        raise SystemExit(f"Unknown command: {args.command}")
-
-
-def cmd_screen(args) -> int:
-    """Screen a listing file and output a ranked queue."""
     try:
-        # Load assumptions
-        assumptions = _load_assumptions(Path(args.assumptions))
-
-        # Load column mapping if provided
-        column_mapping = {}
-        if args.column_map:
-            with open(args.column_map) as f:
-                column_mapping = json.load(f)
-
-        # Load properties from CSV
-        properties = list(from_csv(Path(args.input), column_mapping=column_mapping))
-        if not properties:
-            print("ERROR: No properties loaded from CSV", file=sys.stderr)
-            return 1
-
-        # Dedup and enrich
-        properties = dedup(properties)
-        properties = [enrich(p) for p in properties]
-
-        print(f"Screening {len(properties)} properties...", file=sys.stderr)
-
-        # Underwrite and gate each property
-        results = []
-        for prop in properties:
-            try:
-                # For now, use provided rent or a default estimate
-                rent_point = Decimal(args.rent_mid) if args.rent_mid else _estimate_rent(prop)
-                rent_low = Decimal(args.rent_low) if args.rent_low else rent_point * Decimal(0.95)
-                rent_high = Decimal(args.rent_high) if args.rent_high else rent_point * Decimal(1.05)
-
-                rent = from_signals(
-                    comps_estimate=rent_point,
-                    psf_estimate=rent_point,
-                    haircut_estimate=rent_point,
-                )
-                rent.low = rent_low
-                rent.high = rent_high
-
-                result = underwrite(prop, rent, assumptions)
-                result.gates = evaluate_gates(result, prop, assumptions)
-                results.append(result)
-            except Exception as e:
-                print(f"ERROR: Could not underwrite {prop.property_id}: {e}", file=sys.stderr)
-                continue
-
-        # Rank and output
-        ranked = rank_queue(results)
-
-        with open(args.out, "w", newline="") as f:
-            writer = csv.DictWriter(
-                f,
-                fieldnames=[
-                    "rank",
-                    "property_id",
-                    "list_price",
-                    "rent_monthly",
-                    "cap_rate",
-                    "cash_on_cash",
-                    "levered_irr",
-                    "gates_passed",
-                    "score",
-                    "reason",
-                ],
-            )
-            writer.writeheader()
-
-            for i, (result, score, reason) in enumerate(ranked, 1):
-                gates_passed = sum(1 for g in result.gates if g.passed)
-                writer.writerow({
-                    "rank": i,
-                    "property_id": result.property_id,
-                    "list_price": float(result.all_in_basis),
-                    "rent_monthly": float(result.rent.point),
-                    "cap_rate": result.going_in_cap_rate,
-                    "cash_on_cash": result.cash_on_cash,
-                    "levered_irr": result.levered_irr,
-                    "gates_passed": f"{gates_passed}/{len(result.gates)}",
-                    "score": f"{score:.0f}",
-                    "reason": reason,
-                })
-
-        print(f"✓ Ranked {len(ranked)} properties to {args.out}", file=sys.stderr)
-        return 0
-
-    except Exception as e:
+        if args.command == "serve":
+            from .web.server import serve
+            serve(args.host, args.port)
+            return 0
+        if args.command == "evaluate":
+            return cmd_evaluate(args)
+        return cmd_screen(args)
+    except (OSError, ValueError, ValidationError, yaml.YAMLError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 
 
-def cmd_memo(args) -> int:
-    """Render a memo for one property.
+def _load(path: str) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}   # YAML is a superset of JSON
 
-    TODO: In a real implementation, this would look up the property from a database
-    or input file. For now, this is a placeholder.
-    """
-    print("memo: Phase 5 feature. Requires property database / input file.", file=sys.stderr)
-    print(f"Would render memo for property: {args.property_id}", file=sys.stderr)
-    print(f"Address: {args.address or '(not provided)'}", file=sys.stderr)
+
+def cmd_evaluate(args) -> int:
+    result = evaluate(DealInput.model_validate(_load(args.deal)))
+    print(result.model_dump_json(indent=2) if args.json else summary(result))
     return 0
 
 
-def _load_assumptions(path: Path) -> Assumptions:
-    """Load assumptions from a YAML file."""
-    with open(path) as f:
-        data = yaml.safe_load(f)
-    return Assumptions(**data)
+def summary(r: Result) -> str:
+    o, m, a = r.offer, r.metrics, r.acquisition
+
+    def pct(v):
+        return "n/a" if v is None else f"{v:.1%}"
+
+    max_offer = "none" if o.max_offer is None else f"${o.max_offer:,.0f}"
+    inv = "none" if o.investment_value is None else f"${o.investment_value:,.0f}"
+    dscr = "n/a" if m.dscr is None else f"{m.dscr:.2f}x"
+    lines = [
+        f"{o.verdict.upper()}: {o.summary}",
+        (f"Max offer {max_offer} | highest price meeting targets {inv} (limited by {o.limited_by}) "
+         f"| value ${o.market_value:,.0f}"),
+        (f"Normal year: cash flow ${m.monthly_cash_flow:,.0f}/mo, cash-on-cash {pct(m.cash_on_cash)}, "
+         f"cap rate {pct(m.cap_rate)}, DSCR {dscr}"),
+        (f"IRR {pct(m.irr_before_tax)} before tax, {pct(m.irr_after_tax)} after | "
+         f"cash to close ${a.total_cash_needed:,.0f}"),
+        " | ".join(f"{s.name}: ${s.monthly_cash_flow:,.0f}/mo" for s in r.management),
+    ]
+    if r.warnings:
+        lines += ["Watch out:"] + [f"  - {w}" for w in r.warnings]
+    return "\n".join(lines)
 
 
-def _estimate_rent(prop: Property) -> Decimal:
-    """Simple rent estimate: price * 0.8% / 12 (1% rule)."""
-    # Very rough estimate: 0.8% rule
-    monthly_rent = prop.list_price * Decimal(0.008)
-    return max(Decimal(500), monthly_rent)  # At least $500/month
+def cmd_screen(args) -> int:
+    profile = _load(args.profile) if args.profile else {}
+    mapping = json.loads(Path(args.column_map).read_text()) if args.column_map else None
+    deals, bad = [], 0
+    for line, item in from_csv(Path(args.input), profile, mapping):
+        if isinstance(item, str):
+            bad += 1
+            print(f"skipped line {line}: {item}", file=sys.stderr)
+        else:
+            deals.append(item)
+    rows = []
+    for d in dedup(deals):
+        r = resolve(d)
+        m = metrics(r, project(d, r, d.purchase.price))   # no stress tests: fast enough for hundreds
+        o = offer(d, r, m)
+        rows.append({
+            "address": d.property.address, "zip": d.property.zip_code, "price": round(d.purchase.price),
+            "verdict": o.verdict,
+            "max_offer": "" if o.max_offer is None else round(o.max_offer),
+            "margin_at_price": "" if o.margin_at_price is None else round(o.margin_at_price, 3),
+            "monthly_cash_flow": round(m.monthly_cash_flow),
+            "cash_on_cash": "" if m.cash_on_cash is None else round(m.cash_on_cash, 4),
+            "cap_rate": round(m.cap_rate, 4),
+            "irr_after_tax": "" if m.irr_after_tax is None else round(m.irr_after_tax, 4),
+            "limited_by": o.limited_by, "summary": o.summary,
+        })
+    rows.sort(key=lambda x: (VERDICT_ORDER[x["verdict"]],
+                             -(x["margin_at_price"] if x["margin_at_price"] != "" else -9)))
+    with open(args.out, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["rank", *rows[0]] if rows else ["rank"])
+        w.writeheader()
+        for i, row in enumerate(rows, 1):
+            w.writerow({"rank": i, **row})
+    counts = {v: sum(r["verdict"] == v for r in rows) for v in VERDICT_ORDER}
+    print(f"Ranked {len(rows)} listings ({counts['buy']} buy, {counts['negotiate']} negotiate, "
+          f"{counts['pass']} pass; {bad} skipped) -> {args.out}", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":

@@ -1,0 +1,26 @@
+{
+  "built": "2026-10-15",
+  "redfin_through": "2026-05",
+  "acs_year": null,
+  "national_ppsf_by_year": {
+    "2012": 100.8,
+    "2013": 111.8,
+    "2014": 119.0,
+    "2015": 125.6,
+    "2016": 133.7,
+    "2017": 143.2,
+    "2018": 151.2,
+    "2019": 156.6,
+    "2020": 167.7,
+    "2021": 201.8,
+    "2022": 224.5,
+    "2023": 225.2,
+    "2024": 235.5,
+    "2025": 237.2
+  },
+  "zips": 20238,
+  "sources": [
+    "Redfin, a national real estate brokerage (Data Center)",
+    "Realtor.com economic research data"
+  ]
+}

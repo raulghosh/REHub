@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deal Evaluator</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --card: #ffffff;
+  --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --neg: #e34948;
+  --good: #0ca30c; --good-text: #006300; --warn: #fab219; --crit: #d03b3b;
+  --field: #ffffff; --focus: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --card: #1a1a19;
+    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --neg: #e66767; --good-text: #0ca30c;
+    --field: #232322; --focus: #3987e5;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+h1, h2, h3 { margin: 0; line-height: 1.2; }
+button { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--axis); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.top { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--card); }
+.top h1 { font-size: 18px; }
+.top p { margin: 2px 0 0; color: var(--ink-2); font-size: 13px; }
+.top-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+.layout { display: grid; grid-template-columns: minmax(340px, 430px) minmax(0, 1fr); align-items: start; }
+.inputs { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 14px 14px 40px; border-right: 1px solid var(--border); }
+.results { padding: 16px 20px 60px; display: grid; gap: 14px; min-width: 0; transition: opacity .15s; }
+.results.loading { opacity: .55; }
+@media (max-width: 980px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .inputs { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+  .results { padding: 14px 16px 60px; }
+  .top { flex-wrap: wrap; padding: 12px 16px; }
+}
+
+details.sec { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; }
+details.sec > summary { cursor: pointer; list-style: none; padding: 11px 14px; font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+details.sec > summary::-webkit-details-marker { display: none; }
+details.sec > summary::after { content: "+"; color: var(--muted); font-weight: 400; }
+details.sec[open] > summary::after { content: "\2212"; }
+details.sec > summary small { font-weight: 400; color: var(--muted); margin-left: auto; margin-right: 6px; }
+.sec-body { padding: 0 14px 14px; display: grid; gap: 12px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.f { display: grid; gap: 3px; min-width: 0; }
+.f > span { font-size: 12px; color: var(--ink-2); display: flex; justify-content: space-between; gap: 6px; }
+.f.wide { grid-column: 1 / -1; }
+input, select { width: 100%; font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px; min-width: 0; }
+input::placeholder { color: var(--muted); }
+input:invalid { border-color: var(--crit); }
+.q { font-size: 11px; color: var(--muted); display: inline-flex; gap: 3px; align-items: center; cursor: pointer; }
+.q input { width: auto; margin: 0; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
+.check input { width: auto; margin-top: 3px; }
+.check small { display: block; color: var(--muted); font-size: 12px; }
+.hint { margin: 0; font-size: 12px; color: var(--muted); }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg label { flex: 1; text-align: center; padding: 6px 4px; cursor: pointer; font-size: 13px; }
+.seg input { position: absolute; opacity: 0; width: 1px; }
+.seg label:has(input:checked) { background: var(--s1); color: #fff; font-weight: 600; }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
+table.edit { width: 100%; border-collapse: collapse; }
+table.edit th { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; padding: 0 4px 3px 0; }
+table.edit td { padding: 2px 4px 2px 0; }
+table.edit button { padding: 4px 8px; }
+.row-actions { display: flex; gap: 8px; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+.card > h2 { font-size: 15px; margin-bottom: 10px; }
+.card > h2 small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
+.verdict { display: grid; gap: 12px; }
+.verdict-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; font-weight: 700; letter-spacing: .04em; font-size: 13px; border: 1px solid var(--border); }
+.pill i { font-style: normal; width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-size: 12px; }
+.pill.buy i { background: var(--good); } .pill.negotiate i { background: var(--warn); color: #0b0b0b; } .pill.pass i { background: var(--crit); }
+.summary { font-size: 15px; margin: 0; }
+.hero { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-end; }
+.hero .label { font-size: 12px; color: var(--ink-2); }
+.hero .big { font-size: 40px; font-weight: 650; line-height: 1.05; }
+.hero .mid { font-size: 20px; font-weight: 600; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--ink-2); font-size: 13px; }
+.facts b { color: var(--ink); font-weight: 600; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.tile { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); }
+.tile .label { font-size: 12px; color: var(--ink-2); }
+.tile .value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+.tile .sub { font-size: 12px; color: var(--muted); }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.two .tile.on { border-color: var(--s1); }
+.warnings { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.warnings li::marker { content: "\26A0  "; color: var(--warn); }
+.status { display: inline-flex; align-items: center; gap: 5px; }
+.status i { font-style: normal; font-weight: 700; }
+.status.ok i { color: var(--good-text); } .status.no i { color: var(--crit); }
+.tbl-wrap { overflow-x: auto; }
+table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+table.data th, table.data td { padding: 6px 8px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+table.data thead th { font-size: 12px; font-weight: 500; color: var(--ink-2); }
+table.data tr.total td { font-weight: 650; border-top: 1px solid var(--axis); }
+table.data td.src { text-align: left; white-space: normal; color: var(--ink-2); }
+table.data td.wrap { white-space: normal; }
+.neg { color: var(--crit); }
+.split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 1240px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.errors { border-color: var(--crit); }
+.errors ul { margin: 6px 0 0; padding-left: 18px; }
+.note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+.chart text.ink { fill: var(--ink-2); font-size: 12px; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .baseline { stroke: var(--axis); stroke-width: 1; }
+.chart .cross { stroke: var(--axis); stroke-width: 1; }
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; flex-wrap: wrap; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .key { width: 14px; height: 2px; border-radius: 1px; }
+.legend .key.box { width: 12px; height: 12px; border-radius: 3px; }
+.tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); display: none; white-space: nowrap; z-index: 2; }
+.tip .t { color: var(--ink-2); margin-bottom: 3px; }
+.tip .r { display: flex; align-items: center; gap: 7px; }
+.tip .r b { font-weight: 650; }
+.tip .r .key { width: 10px; height: 2px; }
+.bar:hover, .bar:focus { opacity: .82; outline: none; }
+
+@media print {
+  .inputs, .top-actions { display: none; }
+  .layout { grid-template-columns: 1fr; }
+  .card { break-inside: avoid; }
+  body { background: #fff; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Deal Evaluator</h1>
+    <p>Buy-and-hold rentals for individual investors: houses, condos, small multifamily and fixer-uppers.</p>
+  </div>
+  <div class="top-actions">
+    <button type="button" id="reset">Reset to sample</button>
+    <button type="button" id="print">Print</button>
+  </div>
+</header>
+
+<main class="layout">
+<form id="deal" class="inputs" novalidate autocomplete="off">
+
+  <details class="sec" open>
+    <summary>Property</summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f wide"><span>Address (optional)</span><input data-p="property.address" data-t="str" maxlength="200"></label>
+        <label class="f"><span>Zip code</span><input data-p="property.zip_code" data-t="str" inputmode="numeric" pattern="\d{5}" maxlength="5" required></label>
+        <label class="f"><span>Type</span>
+          <select data-p="property.property_type" id="ptype">
+            <option value="single_family">Single-family</option>
+            <option value="townhouse">Townhouse</option>
+            <option value="condo">Condo</option>
+            <option value="multi_2_4">Multifamily 2-4 units</option>
+            <option value="multi_5_plus">Multifamily 5+ units</option>
+          </select></label>
+        <label class="f"><span>Year built</span><input data-p="property.year_built" type="number" min="1700" max="2100" step="any" required></label>
+        <label class="f"><span>Living area (sqft, all units)</span><input data-p="property.sqft" type="number" min="101" step="any" required></label>
+        <label class="f"><span>HOA ($/mo) <label class="q"><input type="checkbox" data-known="hoa">quote</label></span><input data-p="property.hoa_monthly" type="number" min="0" step="any"></label>
+        <label class="f"><span>Units</span><input id="unitCount" type="number" min="1" max="500" step="any"></label>
+      </div>
+      <p class="hint" id="zipInfo" aria-live="polite"></p>
+      <table class="edit" id="units">
+        <thead><tr><th>Unit</th><th>Beds</th><th>Baths</th><th>Rent $/mo</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="hint">Market rent after any rehab. Check leased comps, not asking rents.</p>
+    </div>
+  </details>
+
+  <details class="sec" open>
+    <summary>Purchase &amp; closing</summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f"><span>Price / your offer ($)</span><input data-p="purchase.price" type="number" min="1" step="any" required></label>
+        <label class="f"><span>Market value ($)</span><input data-p="purchase.market_value" type="number" min="1" step="any" placeholder="auto: zip $/sqft"></label>
+        <label class="f"><span>Closing costs (%) <label class="q"><input type="checkbox" data-known="closing">quote</label></span><input data-p="purchase.closing_costs_pct" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>Inspections ($) <label class="q"><input type="checkbox" data-known="inspection">quote</label></span><input data-p="purchase.inspection_costs" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Other costs ($)</span><input data-p="purchase.other_costs" type="number" min="0" step="any"></label>
+        <label class="f"><span>Seller credits ($)</span><input data-p="purchase.seller_credits" type="number" min="0" step="any"></label>
+      </div>
+      <p class="hint">Closing: title, escrow, recording, transfer tax, attorney. Inspections: home, sewer scope, termite. Lender fees are under Financing.</p>
+      <div>
+        <table class="edit" id="repairs">
+          <thead><tr><th>Known repair (from inspection)</th><th>Cost $</th><th>Year</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="row-actions"><button type="button" id="addRepair">+ Add repair</button></div>
+        <p class="hint">Only items beyond normal wear (e.g. a roof past its life). Year 0 = at purchase: ask for a credit.</p>
+      </div>
+    </div>
+  </details>
+
+  <details class="sec" open>
+    <summary>Fixer-upper (distressed)</summary>
+    <div class="sec-body">
+      <label class="check"><input type="checkbox" id="rehabOn"><span>This property needs a rehab<small>Buy, renovate, rent, optionally refinance (BRRRR).</small></span></label>
+      <div id="rehabFields" class="grid">
+        <label class="f"><span>Rehab budget ($)</span><input data-p="rehab.budget" type="number" min="0" step="any"></label>
+        <label class="f"><span>Months (no rent)</span><input data-p="rehab.months" type="number" min="0" max="24" step="any"></label>
+        <label class="f"><span>Contingency (%)</span><input data-p="rehab.contingency_pct" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>After-repair value ($)</span><input data-p="rehab.arv" type="number" min="1" step="any" placeholder="auto: zip $/sqft"></label>
+        <label class="f"><span>Effective age after (yrs)</span><input data-p="rehab.effective_age_after" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Holding utilities ($/mo)</span><input data-p="rehab.holding_utilities_monthly" type="number" min="0" step="any"></label>
+        <label class="check f wide"><input type="checkbox" data-p="rehab.refinance" id="refiOn"><span>Cash-out refinance after the rehab</span></label>
+        <div id="refiFields" class="grid f wide">
+          <label class="f"><span>Refi in month</span><input data-p="rehab.refi_month" type="number" min="1" step="any" placeholder="auto: rehab + 6"></label>
+          <label class="f"><span>Refi loan-to-value (%)</span><input data-p="rehab.refi_ltv" data-t="pct" type="number" min="1" max="100" step="any"></label>
+          <label class="f"><span>Refi rate (%)</span><input data-p="rehab.refi_rate" data-t="pct" type="number" min="0" step="any" placeholder="auto: loan rate"></label>
+          <label class="f"><span>Refi term (yrs)</span><input data-p="rehab.refi_term_years" type="number" min="1" max="40" step="any"></label>
+          <label class="f"><span>Refi costs (% of loan)</span><input data-p="rehab.refi_cost_pct" data-t="pct" type="number" min="0" step="any"></label>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <details class="sec" open>
+    <summary>Financing</summary>
+    <div class="sec-body">
+      <label class="check"><input type="checkbox" id="allCash"><span>All-cash purchase</span></label>
+      <div id="loanFields" class="grid">
+        <label class="f"><span>Down payment (%)</span><input data-p="loan.down_payment_pct" data-t="pct" type="number" min="0" max="100" step="any"></label>
+        <label class="f"><span>Interest rate (%)</span><input data-p="loan.rate" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>Term (yrs)</span><input data-p="loan.term_years" type="number" min="1" max="40" step="any"></label>
+        <label class="f"><span>Points (% of loan)</span><input data-p="loan.points_pct" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>Lender fees + appraisal ($)</span><input data-p="loan.lender_fees" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>PMI (%/yr if &lt;20% down)</span><input data-p="loan.pmi_rate" data-t="pct" type="number" min="0" step="any"></label>
+      </div>
+      <p class="hint">Use your lender's quote: investment-property rates run above owner-occupied.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>Management <small id="mgmtLabel"></small></summary>
+    <div class="sec-body">
+      <div class="seg" role="radiogroup" aria-label="Who manages">
+        <label><input type="radio" name="mode" value="self" data-p="management.mode">Self-managed</label>
+        <label><input type="radio" name="mode" value="pm" data-p="management.mode">Property manager</label>
+      </div>
+      <div id="pmFields" class="grid">
+        <label class="f"><span>Management fee (% of rent)</span><input data-p="management.pm_fee_pct" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>Leasing fee (% of 1 month)</span><input data-p="management.leasing_fee_pct" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>Renewal fee ($)</span><input data-p="management.renewal_fee" type="number" min="0" step="any"></label>
+        <label class="f"><span>Markup on repairs (%)</span><input data-p="management.maintenance_markup_pct" data-t="pct" type="number" min="0" step="any"></label>
+      </div>
+      <div id="selfFields" class="grid">
+        <label class="f"><span>Repairs you do yourself (%)</span><input data-p="management.diy_pct" data-t="pct" type="number" min="0" max="100" step="any"></label>
+        <label class="f"><span>Your hours / unit / month</span><input data-p="management.hours_per_unit_month" type="number" min="0" step="any"></label>
+        <label class="f"><span>Value of your time ($/hr)</span><input data-p="management.hourly_value" type="number" min="0" step="any"></label>
+      </div>
+      <p class="hint">Results compare both ways. Value your time above $0 to make the comparison fair.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>Income &amp; expenses</summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f"><span>Other income ($/mo)</span><input data-p="operations.other_income_monthly" type="number" min="0" step="any"></label>
+        <label class="f"><span>Vacancy (%)</span><input data-p="operations.vacancy_pct" data-t="pct" type="number" min="0" max="100" step="any" placeholder="auto"></label>
+        <label class="f"><span>Unpaid rent (%)</span><input data-p="operations.credit_loss_pct" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>Lease-up (months)</span><input data-p="operations.lease_up_months" type="number" min="0" max="12" step="any"></label>
+        <label class="f"><span>Avg tenant stay (yrs)</span><input data-p="operations.avg_tenancy_years" type="number" min="0.5" step="any" placeholder="auto"></label>
+        <label class="f"><span>Turnover cost ($/move-out)</span><input data-p="operations.turnover_cost" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Property tax ($/yr) <label class="q"><input type="checkbox" data-known="property_tax">quote</label></span><input data-p="operations.property_tax_annual" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>…or tax rate (% of price)</span><input data-p="operations.property_tax_rate" data-t="pct" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Insurance ($/yr) <label class="q"><input type="checkbox" data-known="insurance">quote</label></span><input data-p="operations.insurance_annual" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Owner-paid utilities ($/mo) <label class="q"><input type="checkbox" data-known="utilities">quote</label></span><input data-p="operations.utilities_monthly" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Other ($/yr) <label class="q"><input type="checkbox" data-known="other">quote</label></span><input data-p="operations.other_expenses_annual" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Rebuild cost ($/sqft)</span><input data-p="operations.replacement_cost_psf" type="number" min="1" step="any"></label>
+        <label class="f wide"><span>Upkeep override (% of rebuild cost/yr)</span><input data-p="operations.upkeep_pct_override" data-t="pct" type="number" min="0" step="any" placeholder="auto: rises with the home's age"></label>
+      </div>
+      <p class="hint">Property tax is reassessed at your price, not the seller's bill. Tick "quote" for figures you have in writing: estimates get the allowance below.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>Growth &amp; inflation</summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f"><span>General inflation (CPI-U)</span><input data-p="growth.general_inflation" data-t="pct" type="number" step="any"></label>
+        <label class="f"><span>Rent growth (CPI rent)</span><input data-p="growth.rent" data-t="pct" type="number" step="any"></label>
+        <label class="f"><span>Appreciation</span><input data-p="growth.appreciation" data-t="pct" type="number" step="any" placeholder="auto: zip trend"></label>
+        <label class="f"><span>Property tax growth</span><input data-p="growth.property_tax" data-t="pct" type="number" step="any" placeholder="auto: = appreciation"></label>
+        <label class="f"><span>Insurance growth</span><input data-p="growth.insurance" data-t="pct" type="number" step="any"></label>
+        <label class="f"><span>Repair cost growth</span><input data-p="growth.maintenance" data-t="pct" type="number" step="any"></label>
+        <label class="f"><span>HOA growth</span><input data-p="growth.hoa" data-t="pct" type="number" step="any"></label>
+        <label class="f"><span>Utilities growth</span><input data-p="growth.utilities" data-t="pct" type="number" step="any"></label>
+      </div>
+      <p class="hint">Annual %, long-run. Each line grows with its own index: rent with CPI rent (~3.3%/yr since 1990), insurance faster than CPI, repairs with construction labor.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>Your tax situation</summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f"><span>Filing status</span>
+          <select data-p="tax.filing_status"><option value="mfj">Married, joint</option><option value="single">Single</option></select></label>
+        <label class="f"><span>Household income ($/yr)</span><input data-p="tax.household_income" type="number" min="0" step="any"></label>
+        <label class="f"><span>State income tax (%)</span><input data-p="tax.state_rate" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>Income growth (%/yr)</span><input data-p="tax.income_growth" data-t="pct" type="number" step="any" placeholder="auto: CPI"></label>
+        <label class="f"><span>Land share (%)</span><input data-p="tax.land_pct" data-t="pct" type="number" min="0" max="100" step="any" placeholder="auto"></label>
+        <label class="f"><span>Cost segregation (%)</span><input data-p="tax.cost_seg_pct" data-t="pct" type="number" min="0" max="60" step="any"></label>
+        <label class="f"><span>Bonus depreciation (%)</span><input data-p="tax.bonus_depreciation_pct" data-t="pct" type="number" min="0" max="100" step="any"></label>
+      </div>
+      <label class="check"><input type="checkbox" data-p="tax.active_participation"><span>I actively participate<small>Approve tenants, set rents. Unlocks up to $25k/yr of losses against other income below $150k income.</small></span></label>
+      <label class="check"><input type="checkbox" data-p="tax.real_estate_professional"><span>Real estate professional (REPS)<small>750+ hrs/yr and more than half your work time in real estate: losses offset W-2 income.</small></span></label>
+      <label class="check"><input type="checkbox" data-p="tax.exchange_1031"><span>1031 exchange at exit<small>Defers the gain into the next property.</small></span></label>
+      <p class="hint">2026 federal brackets. Estimates only, not tax advice.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>Hold &amp; exit</summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f"><span>Hold (years)</span><input data-p="exit.hold_years" type="number" min="1" max="40" step="any"></label>
+        <label class="f"><span>Selling costs (%)</span><input data-p="exit.selling_cost_pct" data-t="pct" type="number" min="0" step="any"></label>
+      </div>
+    </div>
+  </details>
+
+  <details class="sec" open>
+    <summary>Your buy box</summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f"><span>Margin of safety (%)</span><input data-p="targets.margin_of_safety_pct" data-t="pct" type="number" min="0" max="90" step="any"></label>
+        <label class="f"><span>Estimate allowance (%)</span><input data-p="targets.estimate_allowance_pct" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>Min cash-on-cash (%)</span><input data-p="targets.min_cash_on_cash" data-t="pct" data-null type="number" step="any" placeholder="off"></label>
+        <label class="f"><span>Min cash flow ($/unit/mo)</span><input data-p="targets.min_monthly_cash_flow_per_unit" data-null type="number" step="any" placeholder="off"></label>
+        <label class="f"><span>Min DSCR (x)</span><input data-p="targets.min_dscr" data-null type="number" min="0" step="any" placeholder="off"></label>
+        <label class="f"><span>Min after-tax IRR (%)</span><input data-p="targets.min_irr" data-t="pct" data-null type="number" step="any" placeholder="off"></label>
+      </div>
+      <p class="hint">Max offer = highest price meeting every target, minus the margin of safety. Leave a target blank to switch it off.</p>
+    </div>
+  </details>
+</form>
+
+<section id="results" class="results" aria-live="polite" aria-busy="true">
+  <div class="card"><p>Loading…</p></div>
+</section>
+</main>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const form = $("#deal"), out = $("#results");
+const STORE = "deal-evaluator:v1";
+const SINGLE = ["single_family", "townhouse", "condo"];
+let DEFAULTS = null;
+
+// ---------- formatting ----------
+const usd0 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const usdC = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
+const money = v => v == null ? "—" : usd0.format(v);
+const pct = (v, d = 1) => v == null ? "—" : `${(v * 100).toFixed(d)}%`;
+const times = (v, d = 2) => v == null ? "—" : `${v.toFixed(d)}x`;
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v; else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+const svgNS = "http://www.w3.org/2000/svg";
+function s(tag, attrs, text) {
+  const el = document.createElementNS(svgNS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+  if (text != null) el.textContent = text;
+  return el;
+}
+
+// ---------- form <-> deal ----------
+const getPath = (o, p) => p.split(".").reduce((a, k) => a == null ? undefined : a[k], o);
+function setPath(o, p, v) {
+  const ks = p.split(".");
+  let a = o;
+  for (const k of ks.slice(0, -1)) a = a[k] ??= {};
+  a[ks.at(-1)] = v;
+}
+
+function unitRow(u, i) {
+  const num = (name, v, min) => h("input", { name, type: "number", step: "any", min, value: v ?? "", "aria-label": `Unit ${i + 1} ${name}` });
+  return h("tr", null, h("td", null, `#${i + 1}`), h("td", null, num("beds", u.beds, 0)),
+    h("td", null, num("baths", u.baths, 0)), h("td", null, num("rent", u.rent, 0)));
+}
+function setUnits(units) {
+  $("#units tbody").replaceChildren(...units.map(unitRow));
+  $("#unitCount").value = units.length;
+}
+function readUnits() {
+  return $$("#units tbody tr").map(tr => ({
+    beds: Math.round(+tr.querySelector("[name=beds]").value || 0),
+    baths: +tr.querySelector("[name=baths]").value || 0,
+    rent: +tr.querySelector("[name=rent]").value || 0,
+  }));
+}
+function resizeUnits(n) {
+  const units = readUnits();
+  const last = units.at(-1) || { beds: 2, baths: 1, rent: 1000 };
+  while (units.length < n) units.push({ ...last });
+  setUnits(units.slice(0, n));
+}
+
+function repairRow(r) {
+  const tr = h("tr", null,
+    h("td", null, h("input", { name: "description", maxlength: 80, value: r.description ?? "", "aria-label": "Repair" })),
+    h("td", null, h("input", { name: "cost", type: "number", min: 0, step: "any", value: r.cost ?? "", "aria-label": "Repair cost" })),
+    h("td", null, h("input", { name: "year", type: "number", min: 0, max: 40, step: "any", value: r.year ?? 0, "aria-label": "Repair year" })),
+    h("td", null, h("button", { type: "button", "aria-label": "Remove repair" }, "×")));
+  tr.querySelector("button").addEventListener("click", () => { tr.remove(); schedule(); });
+  return tr;
+}
+const setRepairs = list => $("#repairs tbody").replaceChildren(...list.map(repairRow));
+const readRepairs = () => $$("#repairs tbody tr").map(tr => ({
+  description: tr.querySelector("[name=description]").value.trim() || "Repair",
+  cost: +tr.querySelector("[name=cost]").value || 0,
+  year: Math.round(+tr.querySelector("[name=year]").value || 0),
+})).filter(r => r.cost > 0);
+
+function fill(deal) {
+  const src = structuredClone(deal);
+  $("#rehabOn").checked = !!src.rehab;
+  src.rehab ??= DEFAULTS.rehab;
+  for (const el of $$("[data-p]", form)) {
+    const v = getPath(src, el.dataset.p);
+    if (el.type === "checkbox") el.checked = !!v;
+    else if (el.type === "radio") el.checked = el.value === v;
+    else if (v == null) el.value = "";
+    else el.value = el.dataset.t === "pct" ? +(v * 100).toFixed(4) : v;
+  }
+  $("#allCash").checked = (src.loan?.down_payment_pct ?? 0) >= 1;
+  if ($("#allCash").checked) $("[data-p='loan.down_payment_pct']").value = 25;
+  setUnits(src.property.units);
+  setRepairs(src.purchase.known_repairs || []);
+  for (const el of $$("[data-known]", form)) el.checked = (src.operations?.known || []).includes(el.dataset.known);
+  sync();
+}
+
+function collect() {
+  const deal = {};
+  for (const el of $$("[data-p]", form)) {
+    if (el.closest("[hidden]")) continue;
+    const p = el.dataset.p;
+    if (el.type === "checkbox") { setPath(deal, p, el.checked); continue; }
+    if (el.type === "radio") { if (el.checked) setPath(deal, p, el.value); continue; }
+    if (el.tagName === "SELECT" || el.dataset.t === "str") { setPath(deal, p, el.value.trim()); continue; }
+    const raw = el.value.trim();
+    if (raw === "") { if ("null" in el.dataset) setPath(deal, p, null); continue; }
+    const v = Number(raw);
+    setPath(deal, p, el.dataset.t === "pct" ? v / 100 : v);
+  }
+  if ($("#allCash").checked) setPath(deal, "loan.down_payment_pct", 1);
+  deal.property.units = readUnits();
+  deal.purchase.known_repairs = readRepairs();
+  setPath(deal, "operations.known", $$("[data-known]:checked", form).map(el => el.dataset.known));
+  if (!$("#rehabOn").checked) delete deal.rehab;
+  return deal;
+}
+
+function sync() {
+  $("#rehabFields").hidden = !$("#rehabOn").checked;
+  $("#refiFields").hidden = !$("#refiOn").checked;
+  $("#loanFields").hidden = $("#allCash").checked;
+  const self = $("input[name=mode][value=self]").checked;
+  $("#pmFields").hidden = self;
+  $("#selfFields").hidden = !self;
+  $("#mgmtLabel").textContent = self ? "self-managed" : "property manager";
+  const type = $("#ptype").value, count = $("#unitCount");
+  const [lo, hi] = SINGLE.includes(type) ? [1, 1] : type === "multi_2_4" ? [2, 4] : [5, 500];
+  count.min = lo; count.max = hi; count.disabled = lo === hi;
+  const n = Math.min(hi, Math.max(lo, Math.round(+count.value || lo)));
+  if (n !== $$("#units tbody tr").length) resizeUnits(n);
+}
+
+// ---------- evaluate ----------
+let seq = 0, timer = null;
+function schedule() { clearTimeout(timer); timer = setTimeout(run, 350); }
+async function run() {
+  const deal = collect();
+  try { localStorage.setItem(STORE, JSON.stringify(deal)); } catch { /* private mode */ }
+  const mine = ++seq;
+  out.classList.add("loading");
+  out.setAttribute("aria-busy", "true");
+  let res = null, body = null;
+  try {
+    res = await fetch("/api/evaluate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(deal) });
+    body = await res.json();
+  } catch {
+    body = { error: "Can't reach the model. Is `sfr-eval serve` still running?" };
+  }
+  if (mine !== seq) return;
+  out.classList.remove("loading");
+  out.setAttribute("aria-busy", "false");
+  if (res && res.ok) render(body); else renderErrors(body);
+}
+
+function renderErrors(body) {
+  const items = (body.errors || []).map(e => h("li", null, `${e.loc.replace(/^body\./, "")}: ${e.msg}`));
+  out.replaceChildren(h("div", { class: "card errors" }, h("h2", null, "Check these inputs"),
+    items.length ? h("ul", null, items) : h("p", null, body.error || "Something went wrong.")));
+}
+
+// ---------- results ----------
+function card(title, sub, ...kids) {
+  return h("section", { class: "card" }, h("h2", null, title, sub ? h("small", null, sub) : null), ...kids);
+}
+function table(head, rows, opts = {}) {
+  return h("div", { class: "tbl-wrap" }, h("table", { class: "data" },
+    h("thead", null, h("tr", null, head.map(c => h("th", { scope: "col" }, c)))),
+    h("tbody", null, rows.map(r => h("tr", { class: r.cls }, r.cells.map((c, i) =>
+      h("td", { class: (opts.cls && opts.cls[i]) || (opts.red && typeof c === "number" && c < 0 ? "neg" : null) },
+        typeof c === "number" ? money(c) : c)))))));
+}
+const tile = (label, value, sub) => h("div", { class: "tile" }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), sub ? h("div", { class: "sub" }, sub) : null);
+const status = ok => h("span", { class: `status ${ok ? "ok" : "no"}` }, h("i", { "aria-hidden": "true" }, ok ? "✓" : "✕"), ok ? "meets" : "misses");
+
+function verdictCard(r) {
+  const o = r.offer, label = { buy: "BUY", negotiate: "NEGOTIATE", pass: "PASS" }[o.verdict];
+  const icon = { buy: "✓", negotiate: "↔", pass: "✕" }[o.verdict];
+  const isRehab = o.rule_70 != null;
+  return h("section", { class: "card verdict" },
+    h("div", { class: "verdict-top" },
+      h("span", { class: `pill ${o.verdict}` }, h("i", { "aria-hidden": "true" }, icon), label),
+      h("p", { class: "summary" }, o.summary)),
+    h("div", { class: "hero" },
+      h("div", null, h("div", { class: "label" }, `Max offer (${pct(o.margin_of_safety_pct, 0)} margin of safety)`),
+        h("div", { class: "big" }, o.max_offer == null ? "None" : money(o.max_offer))),
+      h("div", null, h("div", { class: "label" }, "Highest price meeting your targets"),
+        h("div", { class: "mid" }, o.investment_value == null ? "None" : money(o.investment_value))),
+      h("div", null, h("div", { class: "label" }, isRehab ? "After-repair value" : "Market value"),
+        h("div", { class: "mid" }, money(o.market_value)))),
+    h("div", { class: "facts" },
+      h("span", null, "Price ", h("b", null, money(o.price))),
+      h("span", null, "Limited by ", h("b", null, o.limited_by)),
+      o.margin_at_price != null ? h("span", null, "Margin at this price ", h("b", null, pct(o.margin_at_price, 0))) : null,
+      isRehab ? h("span", null, "70% rule ", h("b", null, money(o.rule_70))) : null));
+}
+
+function targetsCard(o) {
+  if (!o.targets.length) return null;
+  const fmt = (name, v) => v == null ? "∞" : name.includes("cash flow") ? money(v) : name === "DSCR" ? times(v) : pct(v);
+  return card("Your targets", "highest price that still meets each one",
+    table(["Target", "Minimum", "At this price", "", "Max price"],
+      o.targets.map(t => ({ cells: [t.name, fmt(t.name, t.threshold), fmt(t.name, t.value), status(t.passed),
+        t.max_price == null ? "none" : money(t.max_price)] }))));
+}
+
+function kpiCard(r) {
+  const m = r.metrics, a = r.acquisition, s = r.stabilized;
+  return card("Normal year", "after lease-up / rehab, before tax",
+    h("div", { class: "kpis" },
+      tile("Cash flow", `${money(m.monthly_cash_flow)}/mo`, m.monthly_cash_flow_per_unit !== m.monthly_cash_flow ? `${money(m.monthly_cash_flow_per_unit)}/unit` : `${money(m.monthly_cash_flow * 12)}/yr`),
+      tile("Cash-on-cash", m.cash_on_cash == null ? "∞" : pct(m.cash_on_cash), `on ${money(m.cash_left_in_deal)} in the deal`),
+      tile("Cap rate", pct(m.cap_rate), `${pct(m.cap_rate_on_cost)} on all-in cost`),
+      tile("DSCR", m.dscr == null ? "no loan" : times(m.dscr), "lenders want 1.2x+"),
+      tile("After-tax IRR", pct(m.irr_after_tax), `${pct(m.irr_before_tax)} before tax`),
+      tile("Equity multiple", times(m.equity_multiple), `over ${r.years.length} yrs, after tax`),
+      tile("Cash to close", money(a.total_cash_needed), a.lender_reserves ? `+ ${money(a.lender_reserves)} reserves` : "all cash"),
+      tile("Break-even occupancy", pct(m.break_even_occupancy, 0), "to cover costs + mortgage"),
+      tile("Rent / price", pct(m.rent_to_price, 2), `GRM ${m.gross_rent_multiplier.toFixed(1)}`),
+      tile("Upkeep", `${pct(m.upkeep_pct_of_rent, 0)} of rent`, `${pct(m.upkeep_pct_of_value)} of value/yr`)));
+}
+
+function compareCard(list) {
+  const mode = $("input[name=mode][value=self]").checked ? "Self-managed" : "Property manager";
+  return card("Self-managed vs property manager", "same deal, both ways",
+    h("div", { class: "two" }, list.map(sc => h("div", { class: `tile${sc.name === mode ? " on" : ""}` },
+      h("div", { class: "label" }, sc.name + (sc.name === mode ? " (your plan)" : "")),
+      h("div", { class: "value" }, `${money(sc.monthly_cash_flow)}/mo`),
+      h("div", { class: "sub" }, `Cash-on-cash ${sc.cash_on_cash == null ? "∞" : pct(sc.cash_on_cash)} · after-tax IRR ${pct(sc.irr_after_tax)}`)))));
+}
+
+function cashCard(a) {
+  const rows = [
+    ["Down payment", a.down_payment], ["Closing costs", a.closing_costs], ["Lender fees & points", a.lender_costs],
+    ["Inspections", a.inspections], ["Other costs", a.other_costs], ["Seller credits", -a.seller_credits],
+    ["Rehab incl. contingency", a.rehab], ["Repairs at purchase", a.repairs_at_purchase],
+  ].filter(([, v]) => Math.abs(v) > 0.5).map(([k, v]) => ({ cells: [k, v] }));
+  rows.push({ cls: "total", cells: ["Cash to close", a.total_cash_needed] });
+  return card("Cash to close", a.loan_amount ? `loan ${money(a.loan_amount)}` : "all cash",
+    table(["", ""], rows),
+    a.lender_reserves ? h("p", { class: "note" }, `Keep about ${money(a.lender_reserves)} (6 months of payments, taxes, insurance) in reserve. Lenders usually require it for investment loans.`) : null);
+}
+
+function proformaCard(s, r) {
+  const lines = [
+    ["Gross rent", s.gross_rent], ["Other income", s.other_income], ["Vacancy & unpaid rent", -s.vacancy_loss],
+    ["Effective income", s.egi, "total"], ["Property tax", -s.property_tax], ["Insurance", -s.insurance], ["HOA", -s.hoa],
+    ["Utilities", -s.utilities], ["Other", -s.other], ["Management", -s.management], ["Leasing & renewals", -s.leasing],
+    ["Upkeep (repairs + capex reserve)", -s.upkeep], ["Turnover", -s.turnover], ["Your time", -s.owner_time],
+    ["Net operating income", s.noi, "total"], ["Mortgage (P&I + PMI)", -s.debt_service], ["Cash flow", s.cash_flow, "total"],
+  ].filter(([, v, c]) => c || Math.abs(v) > 0.5);
+  return card("Normal-year pro forma", "estimated lines include the allowance",
+    table(["", "Monthly", "Annual", "% of rent"], lines.map(([k, v, c]) => ({
+      cls: c, cells: [k, v / 12, v, s.gross_rent ? pct(Math.abs(v) / s.gross_rent, 0) : "—"] }))));
+}
+
+function yearsCard(years) {
+  return card("Year by year", "taxes: negative = savings",
+    table(["Year", "Rent", "NOI", "Mortgage", "Cash flow", "Tax", "After tax", "Value", "Loan", "Equity"],
+      years.map(y => ({ cells: [String(y.year), y.gross_rent, y.noi, y.debt_service, y.cash_flow, y.tax, y.cash_flow_after_tax, y.value, y.loan_balance, y.equity] })), { red: true }));
+}
+
+function saleCard(x) {
+  const rows = [
+    ["Sale price", x.price], ["Selling costs", -x.selling_costs], ["Loan payoff", -x.loan_payoff],
+    ["Proceeds before tax", x.proceeds_before_tax, "total"], ["Taxable gain", x.gain],
+    ["…depreciation recapture", x.depreciation_recapture], ["…capital gain", x.capital_gain],
+    ["Suspended losses released", x.suspended_losses_released], ["Tax on sale", -x.tax],
+    ["Proceeds after tax", x.proceeds_after_tax, "total"], ["Tax deferred by 1031", x.deferred_tax],
+  ].filter(([, v, c]) => c || Math.abs(v) > 0.5);
+  return card(`Sale in year ${x.year}`, null, table(["", ""], rows.map(([k, v, c]) => ({ cls: c, cells: [k, v] }))));
+}
+
+function stressCard(list) {
+  return card("Stress tests", "one thing goes wrong at a time",
+    table(["Scenario", "Cash flow/mo", "Cash-on-cash", "After-tax IRR"],
+      list.map(sc => ({ cells: [sc.name, sc.monthly_cash_flow, sc.cash_on_cash == null ? "∞" : pct(sc.cash_on_cash), pct(sc.irr_after_tax)] })), { red: true }));
+}
+
+function assumptionsCard(list) {
+  return card("What the model assumed", "blank inputs are derived; every one has a source",
+    table(["", "Value", "Source"], list.map(a => ({ cells: [a.label, a.value, a.source] })), { cls: [null, null, "src"] }));
+}
+
+function marketCard(m) {
+  if (!m) return null;
+  const rows = [
+    ["Median sale price (12 mo)", money(m.median_price)], ["Sold $/sqft, this type", m.ppsf ? `$${m.ppsf.toFixed(0)}` : "too few sales"],
+    ["Listing $/sqft", m.list_ppsf ? `$${m.list_ppsf.toFixed(0)}` : "—"], ["Sales in 12 months", m.sales_12m ?? "—"],
+    ["Median days on market", m.median_dom ?? "—"],
+    ["$/sqft trend " + m.trend_years, m.appreciation_trend == null ? "—" : `${pct(m.appreciation_trend)}/yr (US ${pct(m.appreciation_trend - m.appreciation_vs_us)})`],
+  ];
+  for (const [b, rent] of Object.entries(m.rent_by_beds || {})) rows.push([`Census median gross rent, ${b} bed`, money(rent)]);
+  if (m.tax_rate) rows.push(["Census effective tax rate", pct(m.tax_rate, 2)]);
+  return card(`Zip ${m.zip}`, `${m.city}, ${m.state} · ${m.metro}`,
+    table(["", ""], rows.map(([k, v]) => ({ cells: [k, String(v)] }))),
+    h("p", { class: "note" }, `Sources: ${m.sources.join("; ")}. ${m.as_of}. Long-run trends only: short-term swings are ignored.`));
+}
+
+function warningsCard(list) {
+  if (!list.length) return null;
+  return card("Watch out", null, h("ul", { class: "warnings" }, list.map(w => h("li", null, w))));
+}
+
+function equityCard(r) {
+  const box = h("div", { class: "chart", id: "equityChart" });
+  return card("Equity build-up", "value vs. loan balance",
+    h("div", { class: "legend" },
+      h("span", null, h("i", { class: "key", style: "background: var(--s1)" }), "Property value"),
+      h("span", null, h("i", { class: "key", style: "background: var(--s2)" }), "Loan balance")), box);
+}
+
+function breakdownCard(b) {
+  const box = h("div", { class: "chart", id: "profitChart" });
+  return card("Where the profit comes from", `total ${money(b.total)} after tax`, box);
+}
+
+let LAST = null;
+function render(r) {
+  LAST = r;
+  const m = r.market;
+  $("#zipInfo").textContent = !m ? "Zip not in the market data: enter the market value and appreciation yourself."
+    : `${m.city}, ${m.state}: ${m.ppsf ? `sold $${m.ppsf.toFixed(0)}/sqft for this type (${m.sales_12m} sales, 12 mo), value about ${money(r.metrics.market_value)}` : `only ${m.sales_12m ?? 0} sales in 12 months, too few to value`}.`;
+  out.replaceChildren(...[verdictCard(r), warningsCard(r.warnings), targetsCard(r.offer), kpiCard(r),
+    compareCard(r.management),
+    h("div", { class: "split" }, equityCard(r), breakdownCard(r.returns)),
+    h("div", { class: "split" }, cashCard(r.acquisition), proformaCard(r.stabilized, r)),
+    yearsCard(r.years), h("div", { class: "split" }, saleCard(r.sale), stressCard(r.stress)),
+    assumptionsCard(r.assumptions), marketCard(r.market)].filter(Boolean));
+  drawCharts();
+}
+
+// ---------- charts ----------
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const p = 10 ** Math.floor(Math.log10(v)), n = v / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+}
+
+function tooltip(box) {
+  let tip = box.querySelector(".tip");
+  if (!tip) { tip = h("div", { class: "tip", role: "status" }); box.append(tip); }
+  return tip;
+}
+function showTip(box, tip, x, y, title, rows) {
+  tip.replaceChildren(h("div", { class: "t" }, title), ...rows.map(([color, label, value]) =>
+    h("div", { class: "r" }, color ? h("i", { class: "key", style: `background:${color}` }) : null, h("b", null, value), label)));
+  tip.style.display = "block";
+  const bw = box.clientWidth, tw = tip.offsetWidth;
+  tip.style.left = `${Math.min(Math.max(0, x + 12), bw - tw)}px`;
+  tip.style.top = `${Math.max(0, y - 10)}px`;
+}
+
+function drawEquity(r) {
+  const box = $("#equityChart");
+  if (!box) return;
+  const years = [0, ...r.years.map(y => y.year)];
+  const value = [r.metrics.market_value, ...r.years.map(y => y.value)];
+  const loan = [r.acquisition.loan_amount, ...r.years.map(y => y.loan_balance)];
+  const hasLoan = loan.some(v => v > 1);
+  const W = Math.max(280, box.clientWidth), H = 220, m = { l: 48, r: 14, t: 10, b: 24 };
+  const ymax = niceMax(Math.max(...value, ...loan));
+  const x = i => m.l + (W - m.l - m.r) * i / (years.length - 1);
+  const y = v => m.t + (H - m.t - m.b) * (1 - v / ymax);
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", tabindex: 0,
+    "aria-label": `Property value grows from ${money(value[0])} to ${money(value.at(-1))}; loan balance falls from ${money(loan[0])} to ${money(loan.at(-1))}. Use left and right arrow keys to read each year.` });
+  for (let k = 0; k <= 4; k++) {
+    const v = ymax * k / 4;
+    svg.append(s("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: k ? "gridline" : "baseline" }));
+    svg.append(s("text", { x: m.l - 6, y: y(v) + 4, "text-anchor": "end" }, usdC.format(v)));
+  }
+  const step = Math.ceil(years.length / 8);
+  years.forEach((yr, i) => { if (i % step === 0 || i === years.length - 1) svg.append(s("text", { x: x(i), y: H - 6, "text-anchor": "middle" }, `Yr ${yr}`)); });
+  const path = arr => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  if (hasLoan) {
+    const area = path(value) + loan.map((v, i) => `L${x(loan.length - 1 - i).toFixed(1)},${y(loan[loan.length - 1 - i]).toFixed(1)}`).join("") + "Z";
+    svg.append(s("path", { d: area, fill: "var(--s1)", "fill-opacity": 0.1, stroke: "none" }));
+    svg.append(s("path", { d: path(loan), fill: "none", stroke: "var(--s2)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  }
+  svg.append(s("path", { d: path(value), fill: "none", stroke: "var(--s1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  const last = years.length - 1;
+  svg.append(s("circle", { cx: x(last), cy: y(value[last]), r: 4, fill: "var(--s1)", stroke: "var(--surface)", "stroke-width": 2 }));
+  if (hasLoan) svg.append(s("circle", { cx: x(last), cy: y(loan[last]), r: 4, fill: "var(--s2)", stroke: "var(--surface)", "stroke-width": 2 }));
+  svg.append(s("text", { x: x(last) - 8, y: y(value[last]) - 10, "text-anchor": "end", class: "ink" }, `${usdC.format(value[last])}`));
+  const cross = s("line", { y1: m.t, y2: H - m.b, class: "cross", visibility: "hidden" });
+  svg.append(cross);
+  const hit = s("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" });
+  svg.append(hit);
+  box.replaceChildren(svg);
+  const tip = tooltip(box);
+  let cur = last;
+  const show = i => {
+    cur = i;
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+    showTip(box, tip, x(i), y(value[i]), `Year ${years[i]}`, [["var(--s1)", "value", money(value[i])],
+      ...(hasLoan ? [["var(--s2)", "loan", money(loan[i])]] : []), [null, "equity", money(value[i] - loan[i])]]);
+  };
+  const hide = () => { cross.setAttribute("visibility", "hidden"); tip.style.display = "none"; };
+  hit.addEventListener("pointermove", e => {
+    const bx = svg.getBoundingClientRect(), px = (e.clientX - bx.left) * W / bx.width;
+    show(Math.max(0, Math.min(last, Math.round((px - m.l) / (W - m.l - m.r) * last))));
+  });
+  hit.addEventListener("pointerleave", hide);
+  svg.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); show(Math.max(0, Math.min(last, cur + (e.key === "ArrowRight" ? 1 : -1)))); }
+  });
+  svg.addEventListener("focus", () => show(cur));
+  svg.addEventListener("blur", hide);
+}
+
+function drawProfit(r) {
+  const box = $("#profitChart");
+  if (!box) return;
+  const b = r.returns;
+  const items = [["Operating cash flow", b.operating_cash_flow], ["Loan paydown", b.principal_paydown],
+    ["Appreciation", b.appreciation], ["Bought below value", b.equity_at_purchase],
+    ["Transaction costs", b.transaction_costs], ["Taxes", b.taxes]];
+  const W = Math.max(280, box.clientWidth), row = 30, labelW = Math.min(150, W * 0.38), m = { t: 6, b: 6, r: 8 };
+  const H = m.t + m.b + row * items.length;
+  const lo = Math.min(0, ...items.map(i => i[1])), hi = Math.max(0, ...items.map(i => i[1]));
+  const valueW = 64, plotL = labelW + 8 + (lo < 0 ? valueW : 0), plotR = W - m.r - (hi > 0 ? valueW : 0);
+  const sx = v => plotL + (plotR - plotL) * (v - lo) / ((hi - lo) || 1);
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img",
+    "aria-label": items.map(([k, v]) => `${k} ${money(v)}`).join(", ") });
+  svg.append(s("line", { x1: sx(0), x2: sx(0), y1: m.t, y2: H - m.b, class: "baseline" }));
+  const tip = tooltip(box);
+  items.forEach(([label, v], i) => {
+    const cy = m.t + row * i + row / 2, bh = 16, top = cy - bh / 2;
+    svg.append(s("text", { x: labelW, y: cy + 4, "text-anchor": "end", class: "ink" }, label));
+    const x0 = sx(0), x1 = sx(v), w = Math.abs(x1 - x0), rad = Math.min(4, w / 2);
+    let d;
+    if (v >= 0) d = `M${x0},${top}H${x1 - rad}Q${x1},${top} ${x1},${top + rad}V${top + bh - rad}Q${x1},${top + bh} ${x1 - rad},${top + bh}H${x0}Z`;
+    else d = `M${x0},${top}H${x1 + rad}Q${x1},${top} ${x1},${top + rad}V${top + bh - rad}Q${x1},${top + bh} ${x1 + rad},${top + bh}H${x0}Z`;
+    const bar = s("path", { d: w > 0.5 ? d : `M${x0},${top}h0.5v${bh}h-0.5Z`, fill: v >= 0 ? "var(--s1)" : "var(--neg)", class: "bar", tabindex: 0,
+      "aria-label": `${label}: ${money(v)}` });
+    const hot = s("rect", { x: Math.min(x0, x1) - 4, y: cy - row / 2, width: w + 8, height: row, fill: "transparent" });
+    const showIt = () => showTip(box, tip, Math.max(x0, x1), cy, label, [[v >= 0 ? "var(--s1)" : "var(--neg)", "over the hold", money(v)]]);
+    const hideIt = () => { tip.style.display = "none"; };
+    for (const el of [bar, hot]) { el.addEventListener("pointerenter", showIt); el.addEventListener("pointerleave", hideIt); }
+    bar.addEventListener("focus", showIt); bar.addEventListener("blur", hideIt);
+    svg.append(hot, bar);
+    svg.append(s("text", { x: v >= 0 ? x1 + 6 : x1 - 6, y: cy + 4, "text-anchor": v >= 0 ? "start" : "end", class: "ink" }, usdC.format(v)));
+  });
+  box.replaceChildren(svg, tip);
+}
+
+function drawCharts() { if (LAST) { drawEquity(LAST); drawProfit(LAST); } }
+let resizeTimer = null;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawCharts, 150); });
+
+// ---------- wiring ----------
+form.addEventListener("input", e => { if (e.target.id === "unitCount") return; sync(); schedule(); });
+form.addEventListener("change", () => { sync(); schedule(); });
+$("#unitCount").addEventListener("change", () => { sync(); schedule(); });
+$("#ptype").addEventListener("change", () => {
+  const t = $("#ptype").value, c = $("#unitCount");
+  c.value = SINGLE.includes(t) ? 1 : t === "multi_2_4" ? Math.min(4, Math.max(2, +c.value)) : Math.max(5, +c.value);
+  sync(); schedule();
+});
+$("#addRepair").addEventListener("click", () => { $("#repairs tbody").append(repairRow({ description: "", cost: "", year: 0 })); });
+$("#reset").addEventListener("click", () => { try { localStorage.removeItem(STORE); } catch { /* ignore */ } fill(DEFAULTS.deal); run(); });
+$("#print").addEventListener("click", () => window.print());
+
+(async function init() {
+  try {
+    DEFAULTS = await (await fetch("/api/defaults")).json();
+  } catch {
+    out.replaceChildren(h("div", { class: "card errors" }, h("h2", null, "Can't reach the model"), h("p", null, "Start it with `sfr-eval serve` and reload this page.")));
+    return;
+  }
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(STORE) || "null"); } catch { saved = null; }
+  fill(saved && saved.property ? saved : DEFAULTS.deal);
+  run();
+})();
+</script>
+</body>
+</html>

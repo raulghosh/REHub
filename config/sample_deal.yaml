@@ -1,0 +1,23 @@
+# sfr-eval evaluate config/sample_deal.yaml
+# A 1920s Chicago two-flat, self-managed. Blank fields are derived from the zip and the
+# property; see `assumptions` in the output (or run with --json).
+property:
+  address: ""
+  zip_code: "60616"
+  property_type: multi_2_4
+  year_built: 1925
+  sqft: 2400
+  units:
+    - {beds: 2, baths: 1, rent: 1850}
+    - {beds: 2, baths: 1, rent: 1800}
+purchase:
+  price: 485000
+  known_repairs:
+    - {description: "Tuckpointing", cost: 6000, year: 0}
+operations:
+  property_tax_rate: 0.021        # Cook County effective rate on a 2-flat
+  known: [property_tax]
+management:
+  mode: self
+tax:
+  household_income: 140000

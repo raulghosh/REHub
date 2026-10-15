@@ -1,41 +1,52 @@
-"""CapEx as a sinking-fund reserve driven by component replacement clocks.
+"""Upkeep = routine repairs + capital replacements, as a % of rebuild cost that rises with
+the home's effective age — not a flat % of rent.
 
-Not a flat % of rent. Each major component has a remaining life; the annual reserve is
-the sum of (replacement_cost / remaining_life) across components. Unknown ages are treated
-as mid-life (conservative), never as new.
+Why rebuild cost and not price: land doesn't need a new roof. "1% of value" overstates upkeep
+on a $1M coastal lot and understates it on a $90k Midwest house; sqft x rebuild cost tracks
+the thing that actually wears out.
+
+The curve: a new home coasts on new components (~0.4%/yr); the first replacement wave (water
+heater, appliances, paint, flooring) lands around year 10; roof and HVAC by 25; original
+wiring, supply lines and sewer laterals push it higher past 50. Calibrated to large SFR
+landlords' reported repairs + recurring capex (~$2/sqft/yr on ~30-year-old homes), plus a
+retail premium for not having their scale. Roughly 40% of upkeep is deductible repairs and
+60% capital work (depreciated), which matters for taxes.
 """
 
 from __future__ import annotations
 
-from decimal import Decimal
+from itertools import pairwise
 
-from ..schemas import Assumptions, ComponentAge, Property
+from ..schemas import PropertyType
+
+UPKEEP_CURVE = [(0, 0.004), (10, 0.009), (25, 0.013), (50, 0.016), (75, 0.018)]
+
+TYPE_FACTOR = {
+    PropertyType.SINGLE_FAMILY: 1.0,
+    PropertyType.TOWNHOUSE: 0.85,     # shared walls; owner usually still has roof/exterior
+    PropertyType.CONDO: 0.6,          # HOA dues cover roof, exterior, structure
+    PropertyType.MULTI_2_4: 1.15,     # more kitchens, baths and systems per sqft
+    PropertyType.MULTI_5_PLUS: 1.1,   # same, offset by shared roof/structure economies
+}
+
+REPAIR_SHARE = 0.4   # deductible now; the rest is capitalized
+LABOR_SHARE = 0.6    # of repair and turnover invoices; what DIY saves
+# Vendor markups (PM) and DIY savings (self) apply to repairs and turnovers; capital jobs
+# (roof, HVAC) are contracted out at the same price either way.
 
 
-def annual_reserve(prop: Property, assumptions: Assumptions) -> Decimal:
-    """Annual capex reserve ($) = sum of component cost / remaining life.
+def upkeep_rate(effective_age: float) -> float:
+    """Annual upkeep as a fraction of rebuild cost, linear between curve points."""
+    pts = UPKEEP_CURVE
+    if effective_age >= pts[-1][0]:
+        return pts[-1][1]
+    for (a0, r0), (a1, r1) in pairwise(pts):
+        if effective_age <= a1:
+            return r0 + (r1 - r0) * (max(effective_age, a0) - a0) / (a1 - a0)
+    return pts[-1][1]
 
-    Unknown age → mid-life (conservative): if a roof has unknown age, assume it's half its
-    useful life remaining.
-    """
-    components = [
-        ("roof", prop.component_age.roof, assumptions.roof_life, assumptions.roof_cost),
-        ("hvac", prop.component_age.hvac, assumptions.hvac_life, assumptions.hvac_cost),
-        ("water_heater", prop.component_age.water_heater, assumptions.water_heater_life, assumptions.water_heater_cost),
-        ("flooring", prop.component_age.flooring, assumptions.flooring_life, assumptions.flooring_cost),
-        ("electrical", prop.component_age.electrical, assumptions.electrical_life, assumptions.electrical_cost),
-        ("plumbing", prop.component_age.plumbing, assumptions.plumbing_life, assumptions.plumbing_cost),
-    ]
 
-    total = Decimal(0)
-    for name, age, life, cost in components:
-        if age is None:
-            # Unknown age: assume mid-life, years_remaining = life / 2
-            years_remaining = life / 2
-        else:
-            years_remaining = max(0.1, life - age)  # At least 0.1 years to avoid division by zero
-
-        annual_reserve = cost / Decimal(years_remaining)
-        total += annual_reserve
-
-    return total
+def effective_age(actual_age: float, rehab_total: float, rebuild_cost: float) -> float:
+    """A renovation makes a house act younger: a rehab worth half the rebuild cost (a gut
+    job) resets it to new; smaller rehabs scale down proportionally."""
+    return actual_age * max(0.0, 1 - rehab_total / (0.5 * rebuild_cost))
