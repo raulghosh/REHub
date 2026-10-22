@@ -256,7 +256,7 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
         <label class="f"><span>Inspections ($) <label class="q"><input type="checkbox" data-known="inspection">quote</label></span><input data-p="purchase.inspection_costs" type="number" min="0" step="any" placeholder="auto"></label>
         <label class="f"><span>Other costs ($)</span><input data-p="purchase.other_costs" type="number" min="0" step="any"></label>
         <label class="f"><span>Seller credits ($)</span><input data-p="purchase.seller_credits" type="number" min="0" step="any"></label>
-        <label class="f"><span>Who pays for inspection findings</span><select data-p="purchase.bargaining">
+        <label class="f"><span>Who pays for findings</span><select data-p="purchase.bargaining">
           <option value="auto">Auto (from days on market)</option>
           <option value="buyers">Buyer's market: seller pays most</option>
           <option value="balanced">Balanced: split it</option>
@@ -623,6 +623,8 @@ function fill(deal) {
     const v = getPath(src, el.dataset.p);
     if (el.type === "checkbox") el.checked = !!v;
     else if (el.type === "radio") el.checked = el.value === v;
+    // a deal saved by an older version may lack a newer choice: fall back to the first option
+    else if (el.tagName === "SELECT") el.value = [...el.options].some(o => o.value === v) ? v : el.options[0].value;
     else if (v == null) el.value = "";
     else el.value = el.dataset.t === "pct" ? +(v * 100).toFixed(4) : v;
   }
