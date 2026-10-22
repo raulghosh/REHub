@@ -34,6 +34,11 @@ def evaluate(deal: DealInput) -> Result:
         warnings.append(f"Price is {a.price / r.market_value - 1:.0%} above the estimated market value.")
     if a.repairs_at_purchase:
         warnings.append(f"Ask the seller for a ${a.repairs_at_purchase:,.0f} credit for repairs needed now.")
+    insp = r.inspection
+    if insp and not insp.done and insp.p_any >= 0.25:
+        warnings.append(f"{insp.p_any:.0%} chance the inspection turns up a major repair; in a {insp.market} "
+                        f"you'd likely pay {insp.buyer_share:.0%} of it (up to ${insp.bad_case:,.0f}). "
+                        "Keep the inspection contingency in your offer.")
     if m.rent_to_price < 0.006:
         warnings.append(f"Rent is {m.rent_to_price:.2%} of price per month: returns lean on appreciation.")
     if any(y.suspended_losses > 0 for y in pj.years[:-1]):
@@ -54,7 +59,8 @@ def evaluate(deal: DealInput) -> Result:
     return Result(
         offer=offer(deal, r, m), metrics=m, returns=breakdown(r, pj), financing=fin,
         down_payment_options=down_payment_options(deal, r), exit_timeline=exit_timeline(deal, r, pj),
-        components=r.components, compliance=r.compliance, acquisition=a, stabilized=s,
+        components=r.components, compliance=r.compliance, inspection=r.inspection, acquisition=a,
+        stabilized=s,
         years=pj.years, sale=pj.sale, management=management_compare(deal, r), stress=stress(deal, r),
         assumptions=r.assumptions, market=r.market, warnings=warnings,
     )

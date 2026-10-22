@@ -2,6 +2,7 @@
 
 Standard library HTTP server, stateless (each browser keeps its own deals), safe to host publicly:
     GET  /                the page (index.html)
+    GET  /guide           the investor guide (guide.html)
     GET  /api/defaults    a sample deal plus default rehab inputs, so the page holds no defaults
     POST /api/evaluate    DealInput JSON -> Result JSON (422 + field errors if invalid)
     POST /api/chat        {model, messages, question, deal} + the user's own key in the
@@ -26,6 +27,7 @@ from ..underwrite import rates
 from . import assistant
 
 INDEX = Path(__file__).with_name("index.html")
+GUIDE = Path(__file__).with_name("guide.html")
 MAX_BODY = {"/api/evaluate": 256 * 1024, "/api/chat": 8 * 1024 * 1024}
 # the page is self-contained; connect-src 'self' also keeps a stored key from leaving for anywhere else
 CSP = ("default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; "
@@ -70,6 +72,8 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path in ("/", "/index.html"):
             return self._send(200, INDEX.read_bytes(), "text/html; charset=utf-8")
+        if url.path in ("/guide", "/guide.html"):
+            return self._send(200, GUIDE.read_bytes(), "text/html; charset=utf-8")
         if url.path == "/api/defaults":
             return self._send(200, DEFAULTS)
         self._json(404, {"error": "not found"})

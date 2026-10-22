@@ -10,13 +10,19 @@ pip install -e .
 sfr-eval serve                # open http://127.0.0.1:8000
 ```
 
-The page recalculates as you type and remembers your last deal in the browser. **Ask Claude**
+The page recalculates as you type and remembers your last deal in the browser. The verdict
+stays on top; everything else sits in five tabs (Should I buy it? · What will I earn? · How do I
+pay for it? · What could go wrong? · Every number), and the inputs start with the basics, with
+the optional fine-tuning collapsed below. New to the
+terms? Every measure has an ⓘ tooltip (definition, formula, rule of thumb), and the
+**Investor guide** (`/guide`) walks one example deal through every number. **Ask Claude**
 opens a chat that runs the model for you, using your own Anthropic API key. The same model runs
 from the command line (`sfr-eval evaluate`, `sfr-eval screen`) and over a small JSON API, and the
 whole app deploys as one Docker container (see [Deploy](#deploy-it-for-other-people)).
 
-Looking for the institutional screening funnel (triage hundreds of listings, ranked queue
-and memos)? It moved to [SFRScreeningPipeline](https://github.com/raulghosh/SFRScreeningPipeline).
+This is the first module of **REHub**, a hub of real-estate tools. The earlier institutional
+screening funnel (triage hundreds of listings into a ranked queue) is in this repo's history
+(commit 936590a) and returns as a REHub screener module.
 
 ## What it models that most calculators skip
 
@@ -36,6 +42,7 @@ and memos)? It moved to [SFRScreeningPipeline](https://github.com/raulghosh/SFRS
 | **House hacking** | Live in one unit (or the whole house) for N months: that unit's rent is replaced by the rent you save, your share of costs and depreciation becomes personal for taxes, and owner-occupied loan terms open up. |
 | **Sell or keep** | For every year until the loan is paid off: after-tax profit and IRR if you sell that year, versus your wealth if you keep it (equity plus cash collected, no sale). |
 | **Roof and components** | Enter the ages you know from the inspection. The roof is sized from footprint, pitch and material ($/sqft and life by material); HVAC, water heater, appliances, flooring, paint, windows, electrical, plumbing and kitchen/bath get real replacement dates and costs, and drop out of the age curve so nothing is counted twice. Anything past its life is a cost at purchase. |
+| **Inspection risk** | Before you inspect, each likely finding gets a probability by the home's age and era (foundation, sewer line, termites, water and mold, radon, knob-and-tube or recalled panels, galvanized or polybutylene pipes) and a typical cost. Who pays depends on the market: in a buyer's market the seller usually repairs or credits most of it; in a hot market (the zip's days on market) you pay most; as-is sales leave it all with you. Your expected share goes into cash at purchase and lowers the max offer. Tick "already inspected" and enter the real findings instead. |
 | **Regulatory costs** | A checklist that switches on what usually applies: lead paint (pre-1978), rental licensing, smoke/CO detectors, permit-triggered code upgrades on rehabs, Florida condo inspections and reserves, California soft-story retrofits, large-building energy benchmarking. Typical costs; untick what doesn't apply. |
 | **HOA dues** | Enter the HOA's dues history: its own growth rate is used and fades toward the long run (an HOA budget's insurance + upkeep mix). Reserve-study funding below 30% flags a likely special assessment; enter one and its year. |
 

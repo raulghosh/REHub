@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Investor Guide</title>
+<meta name="description" content="What every number in the deal evaluator means, how it's calculated, and what a good value looks like.">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --card: #ffffff; --ink: #0b0b0b; --ink-2: #52514e; --muted: #77756f;
+  --border: rgba(11,11,11,0.10); --s1: #2a78d6; --good-text: #006300; --crit-text: #b42323;
+  --formula: #f2f1ec; --tip: color-mix(in srgb, #2a78d6 7%, #ffffff);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --card: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8d86;
+    --border: rgba(255,255,255,0.10); --s1: #5b9fec; --good-text: #3fc23f; --crit-text: #f08080;
+    --formula: #232322; --tip: color-mix(in srgb, #5b9fec 10%, #1a1a19);
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 16px; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--s1); text-underline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+.top { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--card); }
+.top h1 { margin: 0; font-size: 18px; }
+.top a.back { font-size: 14px; font-weight: 600; }
+.layout { display: grid; grid-template-columns: 240px minmax(0, 760px); gap: 40px; max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+nav.toc { position: sticky; top: 16px; align-self: start; font-size: 14px; max-height: calc(100vh - 32px); overflow-y: auto; }
+nav.toc p { margin: 14px 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+nav.toc p:first-child { margin-top: 0; }
+nav.toc ul { list-style: none; margin: 0; padding: 0; }
+nav.toc li a { display: block; padding: 2px 0; color: var(--ink-2); text-decoration: none; }
+nav.toc li a:hover { color: var(--s1); }
+main h2 { margin: 48px 0 6px; font-size: 26px; line-height: 1.2; padding-top: 4px; border-top: 1px solid var(--border); padding-top: 28px; }
+main h2:first-of-type { margin-top: 0; border-top: 0; padding-top: 0; }
+main > section > p.lead { color: var(--ink-2); margin: 0 0 8px; }
+article.term { margin: 26px 0 0; }
+article.term h3 { margin: 0 0 6px; font-size: 19px; }
+article.term p { margin: 0 0 10px; }
+.formula { margin: 10px 0; padding: 10px 14px; border-radius: 8px; background: var(--formula); font: 14.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-x: auto; white-space: pre-wrap; }
+.example, .thumb, .app { margin: 10px 0; padding: 10px 14px; border-radius: 8px; font-size: 15px; }
+.example { border: 1px solid var(--border); background: var(--card); }
+.thumb { background: var(--tip); }
+.app { border-left: 3px solid var(--s1); padding-left: 12px; color: var(--ink-2); }
+.example b:first-child, .thumb b:first-child, .app b:first-child { display: block; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+table.ex { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 15px; margin: 10px 0; background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+table.ex td { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+table.ex td:last-child { text-align: right; }
+table.ex tr.total td { font-weight: 650; }
+.note { color: var(--muted); font-size: 14px; }
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 20px; padding-top: 18px; }
+  nav.toc { position: static; max-height: none; columns: 2; column-gap: 20px; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--card); }
+  nav.toc p { break-after: avoid; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Investor Guide</h1>
+  <a class="back" href="/">&larr; Back to the evaluator</a>
+</header>
+
+<div class="layout">
+<nav class="toc" aria-label="Contents">
+  <p>Start here</p>
+  <ul><li><a href="#example">The example deal</a></li></ul>
+  <p>The decision</p>
+  <ul>
+    <li><a href="#max-offer">Max offer</a></li>
+    <li><a href="#investment-value">Highest price meeting your targets</a></li>
+    <li><a href="#margin-of-safety">Margin of safety</a></li>
+    <li><a href="#market-value">Market value</a></li>
+    <li><a href="#verdict">Buy, negotiate, pass</a></li>
+  </ul>
+  <p>Income and costs</p>
+  <ul>
+    <li><a href="#gross-rent">Gross rent and vacancy</a></li>
+    <li><a href="#operating-expenses">Operating expenses</a></li>
+    <li><a href="#upkeep">Upkeep (repairs and capex)</a></li>
+    <li><a href="#noi">Net operating income (NOI)</a></li>
+    <li><a href="#estimate-allowance">Estimate allowance</a></li>
+    <li><a href="#inspection-risk">Inspection risk</a></li>
+  </ul>
+  <p>Returns</p>
+  <ul>
+    <li><a href="#cash-flow">Cash flow</a></li>
+    <li><a href="#cash-on-cash">Cash-on-cash return</a></li>
+    <li><a href="#cap-rate">Cap rate</a></li>
+    <li><a href="#dscr">DSCR</a></li>
+    <li><a href="#break-even">Break-even occupancy</a></li>
+    <li><a href="#rent-to-price">Rent-to-price and GRM</a></li>
+    <li><a href="#irr">IRR</a></li>
+    <li><a href="#equity-multiple">Equity multiple</a></li>
+    <li><a href="#profit-sources">Where the profit comes from</a></li>
+    <li><a href="#sell-or-keep">Sell or keep</a></li>
+  </ul>
+  <p>Financing</p>
+  <ul>
+    <li><a href="#ltv">Down payment and LTV</a></li>
+    <li><a href="#rate">Your mortgage rate</a></li>
+    <li><a href="#mortgage-insurance">Mortgage insurance (PMI, MIP)</a></li>
+    <li><a href="#points">Points and lender fees</a></li>
+    <li><a href="#loan-types">Loan types</a></li>
+    <li><a href="#cash-to-close">Cash to close and reserves</a></li>
+  </ul>
+  <p>Taxes</p>
+  <ul>
+    <li><a href="#depreciation">Depreciation</a></li>
+    <li><a href="#passive-losses">Passive-loss rules</a></li>
+    <li><a href="#cost-segregation">Cost segregation</a></li>
+    <li><a href="#tax-on-sale">Tax when you sell</a></li>
+    <li><a href="#exchange-1031">1031 exchange</a></li>
+  </ul>
+  <p>Growth and fixer-uppers</p>
+  <ul>
+    <li><a href="#appreciation">Appreciation and inflation</a></li>
+    <li><a href="#arv">After-repair value (ARV)</a></li>
+    <li><a href="#rule-70">70% rule</a></li>
+    <li><a href="#brrrr">BRRRR</a></li>
+    <li><a href="#house-hack">House hacking</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<section id="example">
+  <h2>The example deal</h2>
+  <p class="lead">Every measure below uses this one house, so you can follow the numbers from rent to return.</p>
+  <table class="ex">
+    <tr><td>Price</td><td>$200,000</td></tr>
+    <tr><td>Rent</td><td>$2,000 / month</td></tr>
+    <tr><td>Loan</td><td>$150,000 (25% down), 30 years at 7%</td></tr>
+    <tr><td>Closing costs</td><td>$4,000</td></tr>
+    <tr><td>Cash you put in</td><td>$54,000</td></tr>
+  </table>
+  <p class="note">These are round illustrative numbers, not a recommendation. The evaluator does the same arithmetic with your inputs, plus everything this simple version leaves out (taxes, growth by cost line, rate pricing, and so on).</p>
+</section>
+
+<section>
+  <h2>The decision</h2>
+  <p class="lead">The evaluator's job is to tell you the most you should pay, not just whether the asking price "works".</p>
+
+  <article class="term" id="max-offer">
+    <h3>Max offer</h3>
+    <p>The highest price the evaluator says you should offer. It starts from the highest price that still meets all of your targets, takes off your margin of safety, and is never more than the property's market value.</p>
+    <div class="formula">Max offer = min( highest price meeting your targets × (1 − margin of safety), market value )</div>
+    <div class="example"><b>Example</b>If cash-on-cash, DSCR and your other targets are all met up to $180,000, and your margin of safety is 10%, the max offer is $180,000 × 0.9 = $162,000.</div>
+    <div class="app"><b>In this app</b>The verdict card shows the max offer, what limits it (the target that binds first), and how far the asking price is above or below it.</div>
+  </article>
+
+  <article class="term" id="investment-value">
+    <h3>Highest price meeting your targets</h3>
+    <p>Also called <em>investment value</em>: what this property is worth <em>to you</em>, given your financing, taxes and return targets. The evaluator re-runs the whole model at different prices and finds, for each target, the highest price that still meets it. The lowest of those is the investment value.</p>
+    <div class="thumb"><b>Why it matters</b>Market value is what other buyers pay. Investment value is what the numbers support for you. Buy when investment value is comfortably above the price.</div>
+  </article>
+
+  <article class="term" id="margin-of-safety">
+    <h3>Margin of safety</h3>
+    <p>A discount you take off your investment value because every input is an estimate: rent may be lower, repairs higher, rates different. A 10% margin of safety means you only buy if the price is at least 10% below what the numbers support.</p>
+    <div class="thumb"><b>Rule of thumb</b>10% for a typical rental you understand well; 15-20% for fixer-uppers, unfamiliar markets or thin data.</div>
+  </article>
+
+  <article class="term" id="market-value">
+    <h3>Market value</h3>
+    <p>What the property would likely sell for today. By default the evaluator multiplies your square footage by the zip code's median <em>sold</em> price per square foot for this property type over the last 12 months (Redfin data). It ignores condition, lot and layout, so enter an appraisal or your own comps when you have them.</p>
+    <div class="formula">Market value ≈ square feet × zip's median sold $ per square foot</div>
+  </article>
+
+  <article class="term" id="verdict">
+    <h3>Buy, negotiate, pass</h3>
+    <p><strong>Buy</strong>: the price is at or below the max offer. <strong>Negotiate</strong>: the price is above the max offer but still within what the numbers support, so it works if you can get the price down. <strong>Pass</strong>: the price is above what your targets support or above market value, or no price meets your targets at all.</p>
+  </article>
+</section>
+
+<section>
+  <h2>Income and costs</h2>
+  <p class="lead">Everything starts from what the property earns after its running costs.</p>
+
+  <article class="term" id="gross-rent">
+    <h3>Gross rent and vacancy</h3>
+    <p><em>Gross potential rent</em> is twelve months of full rent. <em>Vacancy</em> is the rent you lose between tenants and to tenants who don't pay. What's left is <em>effective gross income</em> (EGI): the rent you actually collect.</p>
+    <div class="formula">Gross rent = monthly rent × 12
+EGI = gross rent − vacancy loss</div>
+    <div class="example"><b>Example</b>$2,000 × 12 = $24,000 gross rent. At 5% vacancy you lose $1,200, so EGI = $22,800.</div>
+    <div class="thumb"><b>Rule of thumb</b>5-8% vacancy for a single-family rental with turnover every 3 years or so; more in weak markets.</div>
+  </article>
+
+  <article class="term" id="operating-expenses">
+    <h3>Operating expenses</h3>
+    <p>The costs of running the property: property tax, insurance, HOA dues, landlord-paid utilities, management, repairs and replacements, and admin costs (accounting, licenses, lawn, pest). The mortgage is <em>not</em> an operating expense; it's financing.</p>
+    <table class="ex">
+      <tr><td>Property tax</td><td>$2,400</td></tr>
+      <tr><td>Insurance</td><td>$1,500</td></tr>
+      <tr><td>Repairs and capex reserve</td><td>$2,400</td></tr>
+      <tr><td>Property management (8% of rent collected)</td><td>$1,824</td></tr>
+      <tr><td>Other (accounting, licenses, lawn)</td><td>$600</td></tr>
+      <tr class="total"><td>Operating expenses</td><td>$8,724</td></tr>
+    </table>
+    <div class="app"><b>In this app</b>Property tax is recalculated at your purchase price (sales trigger reassessment), and each cost line grows with its own inflation rate: insurance faster than general prices, rent with rent inflation, repairs with construction costs.</div>
+  </article>
+
+  <article class="term" id="upkeep">
+    <h3>Upkeep (repairs and capex)</h3>
+    <p>Everything that wears out: day-to-day repairs plus the big replacements ("capital expenditures" or capex) like a roof, HVAC or water heater. Many calculators use a flat 5-10% of rent. The evaluator instead ties it to the home's <em>age</em> and what it would cost to rebuild, because an old house costs more to keep up than a new one whatever its rent.</p>
+    <div class="formula">Upkeep per year = rebuild cost × upkeep rate for the home's age
+(about 0.4% new, 0.9% at 10 years, 1.3% at 25, 1.6% at 50, 1.8% at 75+)</div>
+    <div class="example"><b>Example</b>A 25-year-old, 1,350 sq ft house that would cost $160/sq ft to rebuild: $216,000 × 1.3% ≈ $2,800 a year.</div>
+    <div class="app"><b>In this app</b>Enter component ages from the inspection (roof, HVAC, ...) and they get real replacement dates and costs instead of the average.</div>
+  </article>
+
+  <article class="term" id="noi">
+    <h3>Net operating income (NOI)</h3>
+    <p>What the property earns before the mortgage and income tax. It's the number lenders and appraisers use, because it describes the property, not the buyer's financing.</p>
+    <div class="formula">NOI = EGI − operating expenses</div>
+    <div class="example"><b>Example</b>$22,800 − $8,724 = <strong>$14,076</strong> a year.</div>
+  </article>
+
+  <article class="term" id="estimate-allowance">
+    <h3>Estimate allowance</h3>
+    <p>A cushion added to every cost you've <em>estimated</em> rather than quoted (default +10%), because estimates tend to come in low. Tick "quote" next to a line when you have a real quote, a tax bill or an insurance policy, and the allowance drops off that line.</p>
+  </article>
+
+  <article class="term" id="inspection-risk">
+    <h3>Inspection risk</h3>
+    <p>Before you inspect, there's a chance the inspection turns up a costly problem the listing didn't show, such as a cracked foundation, a broken sewer line, termites, mold, radon, dangerous wiring or failing pipes. Each has a probability based on the home's age and era, and a typical repair cost. Who pays is a negotiation: in a buyer's market the seller usually repairs or credits most of it; in a hot market you absorb most of it; in an as-is sale, all of it.</p>
+    <div class="formula">Chance of at least one finding = 1 − (1 − p₁) × (1 − p₂) × …
+Expected cost to you = Σ (probability × cost) × your share</div>
+    <div class="example"><b>Example</b>A 20% chance of a $6,000 repipe is worth $1,200 on average. If you'd typically pay half, that's $600 of expected cost from that item alone.</div>
+    <div class="app"><b>In this app</b>The expected cost is added to your cash at purchase, so it lowers the max offer. Once you've inspected, tick "Already inspected" and enter the real findings.</div>
+  </article>
+</section>
+
+<section>
+  <h2>Returns</h2>
+  <p class="lead">Each measure answers a different question. No single one tells the whole story.</p>
+
+  <article class="term" id="cash-flow">
+    <h3>Cash flow</h3>
+    <p>The money left each month after every cost <em>and</em> the mortgage. It's what you live on, or what you feed in if it's negative.</p>
+    <div class="formula">Cash flow = NOI − mortgage payments (debt service)</div>
+    <div class="example"><b>Example</b>The $150,000 loan costs $998 a month, $11,975 a year. $14,076 − $11,975 = <strong>$2,101 a year, about $175 a month</strong>.</div>
+    <div class="thumb"><b>Rule of thumb</b>Many investors want at least $100-200 per unit per month after every reserve, so one bad repair or vacancy doesn't put you underwater.</div>
+  </article>
+
+  <article class="term" id="cash-on-cash">
+    <h3>Cash-on-cash return</h3>
+    <p>Your yearly cash flow as a percentage of the cash you put in. It answers "what does my money earn each year in cash?", but ignores appreciation, loan paydown and taxes.</p>
+    <div class="formula">Cash-on-cash = annual cash flow ÷ cash invested</div>
+    <div class="example"><b>Example</b>$2,101 ÷ $54,000 = <strong>3.9%</strong>.</div>
+    <div class="thumb"><b>Rule of thumb</b>6-10% is a common target for rentals. Compare it with what your cash would earn safely elsewhere.</div>
+  </article>
+
+  <article class="term" id="cap-rate">
+    <h3>Cap rate</h3>
+    <p>NOI as a percentage of the property's value: the return you'd earn if you paid all cash. Because it ignores financing, it's the standard way to compare properties with each other.</p>
+    <div class="formula">Cap rate = NOI ÷ market value</div>
+    <div class="example"><b>Example</b>$14,076 ÷ $200,000 = <strong>7.0%</strong>.</div>
+    <div class="thumb"><b>Rule of thumb</b>If the cap rate is below your mortgage rate, borrowing <em>lowers</em> your cash return (negative leverage), as in this example: 7.0% cap rate against a 7% loan.</div>
+  </article>
+
+  <article class="term" id="dscr">
+    <h3>DSCR (debt service coverage ratio)</h3>
+    <p>How many times the property's NOI covers the mortgage payments. Below 1.0 the rent doesn't cover the loan.</p>
+    <div class="formula">DSCR = NOI ÷ annual debt service</div>
+    <div class="example"><b>Example</b>$14,076 ÷ $11,975 = <strong>1.18x</strong>.</div>
+    <div class="thumb"><b>Rule of thumb</b>Lenders usually want 1.20-1.25x or more; DSCR loans price their rate by it.</div>
+  </article>
+
+  <article class="term" id="break-even">
+    <h3>Break-even occupancy</h3>
+    <p>The share of full rent you need to collect to pay every cost and the mortgage. The lower it is, the more vacancy or rent cuts the deal can absorb.</p>
+    <div class="formula">Break-even occupancy = (operating expenses + debt service) ÷ gross rent</div>
+    <div class="example"><b>Example</b>($8,724 + $11,975) ÷ $24,000 = <strong>86%</strong>. More than about 7 weeks empty in a year and you're losing money.</div>
+    <div class="thumb"><b>Rule of thumb</b>Under 85% is comfortable; over 90% is fragile.</div>
+  </article>
+
+  <article class="term" id="rent-to-price">
+    <h3>Rent-to-price and GRM</h3>
+    <p>Quick screens before any detailed math. Rent-to-price is monthly rent as a percentage of price (the "1% rule" asks for at least 1%). The gross rent multiplier (GRM) is the same idea upside down: price divided by a year's rent.</p>
+    <div class="formula">Rent-to-price = monthly rent ÷ price
+GRM = price ÷ annual rent</div>
+    <div class="example"><b>Example</b>$2,000 ÷ $200,000 = <strong>1.0%</strong>; GRM = 8.3. This house passes the 1% rule, yet its cash-on-cash is only 3.9% at a 7% mortgage rate. That's why the screen is only a first filter.</div>
+  </article>
+
+  <article class="term" id="irr">
+    <h3>IRR (internal rate of return)</h3>
+    <p>One yearly rate that summarizes the whole investment: the cash you put in, every year's cash flow, and what you get back when you sell. It's the interest rate a savings account would need to pay to match the deal. Unlike cash-on-cash, it counts appreciation, loan paydown and the sale, and it gives more weight to money that comes back sooner.</p>
+    <div class="formula">IRR = the rate r at which: −cash in + Σ cash flowₜ ÷ (1 + r)ᵗ + sale proceeds ÷ (1 + r)ⁿ = 0</div>
+    <div class="example"><b>Example</b>Hold 10 years with rent and costs growing 3% a year and the house appreciating 3.5% a year; sell at $282,000 less 6% selling costs and the $128,700 loan balance, for about $136,500. With the yearly cash flows, that's an IRR of about <strong>14.5% before tax</strong>, most of it from the sale.</div>
+    <div class="app"><b>In this app</b>The headline IRR is <em>after tax</em>: income tax each year, depreciation, and the tax when you sell. That's the return you actually keep.</div>
+  </article>
+
+  <article class="term" id="equity-multiple">
+    <h3>Equity multiple</h3>
+    <p>How many times your money you get back in total, ignoring how long it takes.</p>
+    <div class="formula">Equity multiple = total cash you get back ÷ cash you put in</div>
+    <div class="example"><b>Example</b>About $41,600 of cash flow over 10 years plus $136,500 from the sale = $178,100 back on $54,000 in: <strong>3.3x</strong> before tax.</div>
+    <div class="thumb"><b>Read it with IRR</b>A 2x multiple in 5 years is far better than 2x in 20. IRR captures the time; the multiple captures the size.</div>
+  </article>
+
+  <article class="term" id="profit-sources">
+    <h3>Where the profit comes from</h3>
+    <p>The evaluator splits your total after-tax profit into its sources: cash flow, loan paydown (tenants paying down your mortgage), appreciation, buying below value, transaction costs (closing and selling) and taxes. A deal that depends almost entirely on appreciation is a bet on the market; one carried by cash flow and paydown is sturdier.</p>
+  </article>
+
+  <article class="term" id="sell-or-keep">
+    <h3>Sell or keep</h3>
+    <p>For every year until the loan is paid off: your after-tax profit and IRR if you sell that year, against your wealth if you keep the property (equity plus the cash you've collected, with no sale). IRR usually peaks in the early years and then slides as equity builds up in the property, earning only the property's return. That's the moment many investors sell or refinance.</p>
+  </article>
+</section>
+
+<section>
+  <h2>Financing</h2>
+  <p class="lead">The loan often decides whether a deal works.</p>
+
+  <article class="term" id="ltv">
+    <h3>Down payment and LTV</h3>
+    <p>Loan-to-value (LTV) is the loan as a share of the price. 25% down means 75% LTV. Less down means more leverage, which raises returns when the deal is good and losses when it's bad. It also brings a higher rate and mortgage insurance.</p>
+    <div class="formula">LTV = loan amount ÷ price</div>
+    <div class="thumb"><b>Typical minimums</b>Investment property: 15% down for one unit, 25% for 2-4 units. Living there: 3-5% conventional, 3.5% FHA.</div>
+  </article>
+
+  <article class="term" id="rate">
+    <h3>Your mortgage rate</h3>
+    <p>The evaluator starts from Freddie Mac's weekly average 30-year rate and adjusts it for your credit score, down payment and whether you'll live there, using Fannie Mae's loan-level price adjustments. Investment loans cost more than owner-occupied ones. A lender's quote always overrides the estimate.</p>
+  </article>
+
+  <article class="term" id="mortgage-insurance">
+    <h3>Mortgage insurance (PMI, MIP)</h3>
+    <p>Insurance that protects the lender, not you, when you put down less than 20%. Conventional PMI is priced by credit score and LTV and stops when the loan reaches 78% of the original value. FHA charges an upfront premium (1.75%) plus a yearly one (MIP), often for the life of the loan.</p>
+  </article>
+
+  <article class="term" id="points">
+    <h3>Points and lender fees</h3>
+    <p>One point is 1% of the loan amount, paid upfront to the lender, usually to buy a lower rate. Lender fees cover underwriting and processing. Both are part of your cash to close; for taxes, points are deducted over the life of the loan.</p>
+  </article>
+
+  <article class="term" id="loan-types">
+    <h3>Loan types</h3>
+    <p><strong>Conventional</strong>: standard mortgage for 1-4 units, priced by credit and LTV. <strong>FHA</strong>: government-backed, low down payment, owner-occupied only. <strong>DSCR</strong>: an investor loan approved on the property's rent coverage instead of your income; higher rate. <strong>Commercial</strong>: for 5+ units, usually 25-year amortization with a balloon (the remaining balance comes due, typically after 10 years, and must be refinanced).</p>
+  </article>
+
+  <article class="term" id="cash-to-close">
+    <h3>Cash to close and reserves</h3>
+    <p>Everything you pay at purchase: down payment, closing costs, lender fees, inspections, repairs needed now, rehab, minus seller credits. Separately, lenders expect you to hold <em>reserves</em>, usually six months of mortgage, tax and insurance payments. Reserves are not a cost, but you need the cash.</p>
+  </article>
+</section>
+
+<section>
+  <h2>Taxes</h2>
+  <p class="lead">Two investors can earn very different after-tax returns on the same house. These are simplified explanations, not tax advice; check big decisions with a CPA.</p>
+
+  <article class="term" id="depreciation">
+    <h3>Depreciation</h3>
+    <p>The tax code lets you deduct the cost of a rental <em>building</em> (not the land) over 27.5 years, even while the property rises in value. It's a deduction without spending cash, so a property can show a tax loss while putting money in your pocket.</p>
+    <div class="formula">Yearly depreciation = (price + capitalized costs) × building share ÷ 27.5</div>
+    <div class="example"><b>Example</b>If 75% of $200,000 is building: $150,000 ÷ 27.5 ≈ $5,450 deducted each year.</div>
+  </article>
+
+  <article class="term" id="passive-losses">
+    <h3>Passive-loss rules</h3>
+    <p>Rental losses are "passive": normally they only offset passive income. If you actively manage the rental, up to $25,000 of losses a year can offset your salary, phasing out between $100,000 and $150,000 of income. Losses you can't use are suspended, carried forward, and released when you sell. Real estate professionals (750+ hours a year in real estate, more than any other job) are exempt.</p>
+  </article>
+
+  <article class="term" id="cost-segregation">
+    <h3>Cost segregation</h3>
+    <p>An engineering study that reclassifies parts of a building (appliances, flooring, fixtures, landscaping) into 5-, 7- and 15-year property, which can be deducted much faster, currently 100% in the first year through bonus depreciation. It front-loads deductions; you pay some back as recapture when you sell.</p>
+  </article>
+
+  <article class="term" id="tax-on-sale">
+    <h3>Tax when you sell</h3>
+    <p>The depreciation you took is taxed back at up to 25% ("unrecaptured §1250 gain"); fast-depreciated cost-segregation items are taxed as ordinary income. The rest of the gain is a long-term capital gain (0%, 15% or 20%), plus 3.8% net investment income tax for higher earners, plus state tax.</p>
+  </article>
+
+  <article class="term" id="exchange-1031">
+    <h3>1031 exchange</h3>
+    <p>Sell a rental and buy another of equal or greater value within strict deadlines, and you can defer the tax on the sale. The deferred tax carries into the new property; heirs who inherit it get a stepped-up basis, so it may never be paid.</p>
+  </article>
+</section>
+
+<section>
+  <h2>Growth and fixer-uppers</h2>
+
+  <article class="term" id="appreciation">
+    <h3>Appreciation and inflation</h3>
+    <p>Appreciation is how fast the property's value grows. The evaluator uses a long-run US baseline (3.5% a year), nudged by the zip code's 10-year trend against the US and capped so a hot stretch can't dominate. Each cost grows with its own index rather than one inflation rate: rent with rent inflation (about 3%), insurance faster (about 5%), repairs with construction costs (3.5%), admin costs with general inflation (2.5%).</p>
+  </article>
+
+  <article class="term" id="arv">
+    <h3>After-repair value (ARV)</h3>
+    <p>What a fixer-upper will be worth once renovated, usually from comparable sales of renovated homes nearby. Your rent, refinance and exit are all based on it, so it's the most important number to get right on a rehab.</p>
+  </article>
+
+  <article class="term" id="rule-70">
+    <h3>70% rule</h3>
+    <p>A flipper's quick test: pay no more than 70% of the ARV minus the rehab cost. The 30% covers holding costs, selling costs and profit.</p>
+    <div class="formula">Max price ≈ 70% × ARV − rehab cost</div>
+    <div class="example"><b>Example</b>ARV $250,000, rehab $40,000: 0.7 × $250,000 − $40,000 = $135,000.</div>
+  </article>
+
+  <article class="term" id="brrrr">
+    <h3>BRRRR</h3>
+    <p>Buy, Rehab, Rent, Refinance, Repeat. Buy a fixer-upper, renovate, rent it out, then refinance at the new higher value to pull most of your cash back out and do it again. It works only if the after-repair value supports the new loan; the evaluator warns you when the refinance would need cash in instead.</p>
+  </article>
+
+  <article class="term" id="house-hack">
+    <h3>House hacking</h3>
+    <p>Living in one unit of a small multifamily (or in the house for a while) and renting the rest. You get owner-occupied loan terms (lower rate, 3-5% down), and the rent you would have paid elsewhere counts as a saving. Your own unit's share of costs is personal, not a rental deduction.</p>
+  </article>
+</section>
+
+</main>
+</div>
+</body>
+</html>

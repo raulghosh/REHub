@@ -19,7 +19,7 @@ def golden(**overrides) -> DealInput:
         "property": {"zip_code": "38118", "year_built": date.today().year - 25, "sqft": 1000,
                      "units": [{"beds": 2, "baths": 1, "rent": 1000}]},
         "purchase": {"price": 100_000, "market_value": 100_000, "closing_costs_pct": 0.02,
-                     "inspection_costs": 500},
+                     "inspection_costs": 500, "inspection_done": True},
         "loan": {"down_payment_pct": 1.0},
         "management": {"mode": "pm", "pm_fee_pct": 0.10, "leasing_fee_pct": 0, "renewal_fee": 0,
                        "maintenance_markup_pct": 0},
@@ -168,3 +168,33 @@ def test_brrrr_refinance_returns_cash():
 def test_overpaying_lowers_returns():
     lo, hi = (evaluate(golden(purchase__price=p)).metrics for p in (90_000, 120_000))
     assert lo.cash_on_cash > hi.cash_on_cash and lo.irr_after_tax > hi.irr_after_tax
+
+
+def test_inspection_risk():
+    base = {"property": {"zip_code": "38118", "year_built": 1985, "sqft": 1350,
+                         "units": [{"beds": 3, "baths": 2, "rent": 1400}]},
+            "purchase": {"price": 110_000, "bargaining": "balanced"}}
+    r = evaluate(DealInput.model_validate(base))
+    insp = r.inspection
+    rows = {x.key: x for x in insp.rows}
+    assert rows["pipes"].probability == 0.20 and rows["termites"].probability == 0.15   # polybutylene era, TN
+    expected = sum(x.probability * x.cost for x in insp.rows)
+    assert insp.expected_cost == pytest.approx(expected)
+    assert insp.expected_to_you == pytest.approx(expected * 0.5)
+    none = 1.0
+    for x in insp.rows:
+        none *= 1 - x.probability
+    assert insp.p_any == pytest.approx(1 - none)
+    assert r.acquisition.inspection_risk == pytest.approx(expected * 0.5 * 1.10)   # estimate allowance
+
+    done = evaluate(DealInput.model_validate({**base, "purchase": {**base["purchase"], "inspection_done": True}}))
+    assert done.acquisition.inspection_risk == 0
+    assert done.acquisition.total_cash_needed == pytest.approx(
+        r.acquisition.total_cash_needed - r.acquisition.inspection_risk)
+    assert done.offer.investment_value > r.offer.investment_value       # the risk lowers what you can pay
+
+    as_is = evaluate(DealInput.model_validate({**base, "rehab": {"budget": 20_000},
+                                               "purchase": {"price": 90_000}}))
+    assert as_is.inspection.buyer_share == 1.0 and "as-is" in as_is.inspection.market
+    condo = evaluate(DealInput.model_validate({**base, "property": {**base["property"], "property_type": "condo"}}))
+    assert {"structural", "sewer", "termites"}.isdisjoint(x.key for x in condo.inspection.rows)

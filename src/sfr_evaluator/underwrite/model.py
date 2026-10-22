@@ -18,12 +18,13 @@ from ..schemas import (
     ComplianceRow,
     ComponentRow,
     DealInput,
+    InspectionRisk,
     MarketInfo,
     PropertyType,
     Sale,
     YearRow,
 )
-from . import capex, compliance, debt, rates, taxes
+from . import capex, compliance, debt, inspection, rates, taxes
 
 T = PropertyType
 MULTI = (T.MULTI_2_4, T.MULTI_5_PLUS)
@@ -79,6 +80,7 @@ class Resolved:
     compliance: list[ComplianceRow] = field(default_factory=list)
     compliance_annual: float = 0.0
     compliance_one_time: float = 0.0
+    inspection: InspectionRisk | None = None
     owner_months: int = 0
     owner_unit_rent: float = 0.0
     rent_saved: float = 0.0
@@ -273,6 +275,12 @@ def resolve(deal: DealInput) -> Resolved:
             one_time += rule.one_time(units)
             annual += rule.annual(units)
 
+    insp = inspection.risk(deal, state, m.median_dom if m else None)
+    if not insp.done:
+        note("Inspection surprises (expected)",
+             f"{insp.p_any:.0%} chance of a major finding; you pay ~{insp.buyer_share:.0%} "
+             f"= ${insp.expected_to_you:,.0f}", f"{insp.market}: {insp.basis}")
+
     occ = deal.occupancy
     owner_months = occ.months if occ.owner_occupied else 0
     rent_saved = (occ.rent_saved if occ.rent_saved is not None else p.units[0].rent) if owner_months else 0.0
@@ -294,7 +302,7 @@ def resolve(deal: DealInput) -> Resolved:
         state=state, insurance_growth=insurance_growth, hoa_growth=hoa_growth, hoa_index=hoa_index,
         events=events,
         known_share=known_share, components=components, compliance=rows, compliance_annual=annual,
-        compliance_one_time=one_time,
+        compliance_one_time=one_time, inspection=insp,
         owner_months=owner_months, owner_unit_rent=p.units[0].rent if owner_months else 0.0,
         rent_saved=rent_saved, base_rate=base, base_as_of=as_of,
         assumptions=notes, warnings=warn,
@@ -409,8 +417,9 @@ def project(deal: DealInput, r: Resolved, price: float) -> Projection:
     inspections = r.inspections * est("inspection")
     repairs_now = sum(c for y, c, _ in r.events if y == 0) * allow
     compliance_now = r.compliance_one_time * allow
+    surprises = r.inspection.expected_to_you * allow if r.inspection else 0.0
     capitalized = closing + inspections + compliance_now + d.purchase.other_costs - d.purchase.seller_credits
-    cash_needed = price - base_loan + lender + capitalized + r.rehab_total + repairs_now
+    cash_needed = price - base_loan + lender + capitalized + r.rehab_total + repairs_now + surprises
 
     refis: list[debt.Refi] = []
     refi = None
@@ -468,7 +477,7 @@ def project(deal: DealInput, r: Resolved, price: float) -> Projection:
         amortize(refi_costs, refi_years[0], refis[0].term_years, n)
 
     land_basis = (price + capitalized) * r.land_pct
-    building_basis = (price + capitalized) * (1 - r.land_pct) + r.rehab_total + repairs_now
+    building_basis = (price + capitalized) * (1 - r.land_pct) + r.rehab_total + repairs_now + surprises
     sale_price = r.base_value * (1 + r.appreciation) ** n
     selling = sale_price * d.exit.selling_cost_pct
     deductible = ("property_tax", "insurance", "hoa", "utilities", "other", "management", "leasing",
@@ -501,7 +510,7 @@ def project(deal: DealInput, r: Resolved, price: float) -> Projection:
         price=price, down_payment=price - base_loan, loan_amount=loan_amt, closing_costs=closing,
         lender_costs=lender, inspections=inspections, other_costs=d.purchase.other_costs,
         seller_credits=d.purchase.seller_credits, rehab=r.rehab_total, repairs_at_purchase=repairs_now,
-        compliance_costs=compliance_now, total_cash_needed=cash_needed,
+        compliance_costs=compliance_now, inspection_risk=surprises, total_cash_needed=cash_needed,
         lender_reserves=RESERVE_MONTHS * piti / 12 if loan_amt > 0 or refi else 0.0)
 
     before = [-cash_needed] + [y.cash_flow for y in years]

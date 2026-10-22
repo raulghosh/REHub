@@ -27,7 +27,7 @@ sfr-eval = "sfr_evaluator.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-sfr_evaluator = ["data/*", "web/index.html"]
+sfr_evaluator = ["data/*", "web/*.html"]
 
 [tool.ruff]
 line-length = 100

@@ -48,7 +48,7 @@ def metrics(r: Resolved, pj: Projection) -> Metrics:
     s, a = pj.stabilized, pj.acquisition
     cash_left = a.total_cash_needed - sum(y.refi_cash_out for y in pj.years)
     all_in = (a.price + a.closing_costs + a.inspections + a.compliance_costs + a.other_costs
-              - a.seller_credits + a.rehab + a.repairs_at_purchase)
+              - a.seller_credits + a.rehab + a.repairs_at_purchase + a.inspection_risk)
     gpi = s.gross_rent + s.other_income
     return Metrics(
         market_value=r.base_value,
@@ -79,7 +79,7 @@ def breakdown(r: Resolved, pj: Projection) -> ReturnBreakdown:
         "operating_cash_flow": sum(y.cash_flow - y.refi_cash_out for y in pj.years),
         "principal_paydown": sum(y.principal for y in pj.years),
         "appreciation": sale.price - r.base_value,
-        "equity_at_purchase": r.base_value - a.price - a.rehab - a.repairs_at_purchase,
+        "equity_at_purchase": r.base_value - a.price - a.rehab - a.repairs_at_purchase - a.inspection_risk,
         "transaction_costs": -(a.closing_costs + a.lender_costs + a.inspections + a.other_costs
                                + a.compliance_costs - a.seller_credits + sale.selling_costs
                                + pj.refi_costs),
