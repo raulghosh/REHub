@@ -10,7 +10,10 @@ pip install -e .
 sfr-eval serve                # open http://127.0.0.1:8000
 ```
 
-The page recalculates as you type and remembers your last deal in the browser. New to the
+The page recalculates as you type and remembers your last deal in the browser. The verdict
+stays on top; everything else sits in five tabs (Should I buy it? · What will I earn? · How do I
+pay for it? · What could go wrong? · Every number), and the inputs start with the basics, with
+the optional fine-tuning collapsed below. New to the
 terms? Every measure has an ⓘ tooltip (definition, formula, rule of thumb), and the
 **Investor guide** (`/guide`) walks one example deal through every number. **Ask Claude**
 opens a chat that runs the model for you, using your own Anthropic API key. The same model runs

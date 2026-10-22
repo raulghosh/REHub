@@ -48,6 +48,7 @@ a.btn { font: inherit; color: inherit; text-decoration: none; background: var(--
   .inputs { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
   .results { padding: 14px 16px 60px; }
   .top { flex-wrap: wrap; padding: 12px 16px; }
+  .top-actions { flex-wrap: wrap; flex-shrink: 1; }
 }
 
 details.sec { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; }
@@ -95,9 +96,19 @@ table.edit button { padding: 4px 8px; }
 .gap { margin: 0; font-weight: 650; color: var(--vt); }
 .gap.ok { color: var(--good-text); }
 .alert { border-left: 6px solid var(--warn); background: color-mix(in srgb, var(--warn) 9%, var(--card)); }
-.group-h { display: flex; align-items: center; gap: 10px; margin: 14px 0 -2px; font-size: 13px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--s1); }
-.group-h:first-child { margin-top: 0; }
-.group-h::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--s1) 30%, var(--border)); }
+.in-h { margin: 18px 2px 8px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--s1); }
+.in-h small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); }
+.tabs { position: sticky; top: 0; z-index: 5; display: flex; gap: 4px; overflow-x: auto; margin: 0 -20px; padding: 8px 20px 0; background: var(--page); border-bottom: 1px solid var(--border); scrollbar-width: none; }
+.tab { flex: 1 1 0; min-width: 130px; display: grid; align-content: start; gap: 1px; text-align: left; padding: 9px 14px 10px; border: 0; border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0; background: none; }
+.tab b { font-size: 14px; font-weight: 650; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.tab small { font-size: 12px; color: var(--muted); }
+.tab:hover { background: var(--card); border-color: transparent; border-bottom-color: var(--axis); }
+.tab[aria-selected="true"] { background: var(--card); border-bottom-color: var(--s1); }
+.tab[aria-selected="true"] b { color: var(--s1); }
+.tab .count { min-width: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; line-height: 18px; text-align: center; background: var(--warn); color: #0b0b0b; }
+.panel { display: grid; gap: 14px; min-width: 0; }
+@media (max-width: 1240px) { .tabs { flex-wrap: wrap; } .tab { min-width: max-content; } .tab small { display: none; } }
+@media (max-width: 980px) { .tabs { position: static; margin: 0 -16px; padding: 8px 16px 0; } }
 .tile.good { border-left: 4px solid var(--good); } .tile.good .value { color: var(--good-text); }
 .tile.bad { border-left: 4px solid var(--crit); } .tile.bad .value { color: var(--crit-text); }
 .tile.warn { border-left: 4px solid var(--warn); } .tile.warn .value { color: var(--warn-text); }
@@ -193,7 +204,8 @@ table.data td.wrap { white-space: normal; }
 textarea { width: 100%; font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px; resize: vertical; }
 
 @media print {
-  .inputs, .top-actions, .chat { display: none; }
+  .inputs, .top-actions, .chat, .tabs { display: none; }
+  .panel[hidden] { display: grid !important; }
   .layout { grid-template-columns: 1fr; }
   .card { break-inside: avoid; }
   body { background: #fff; }
@@ -218,6 +230,7 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
 <form id="deal" class="inputs" novalidate autocomplete="off">
   <p class="start">Start with the <b>highlighted fields</b>: zip code, price and rent. Everything else has a sensible default you can refine. New to the terms? Tap any <span class="info" aria-hidden="true">i</span> or read the <a href="/guide" target="_blank" rel="noopener">investor guide</a>.</p>
 
+  <h2 class="in-h">The basics<small>Enough for a first answer</small></h2>
   <details class="sec" open>
     <summary>Property</summary>
     <div class="sec-body">
@@ -245,20 +258,6 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Market rent after any rehab. Check leased comps, not asking rents.</p>
     </div>
   </details>
-
-  <details class="sec">
-    <summary>HOA <small>dues history &amp; reserves</small></summary>
-    <div class="sec-body">
-      <div class="grid">
-        <label class="f wide"><span>Past monthly dues, oldest first</span><input id="hoaHistory" placeholder="e.g. 310, 330, 355, 380"></label>
-        <label class="f"><span>Reserves funded (%)</span><input data-p="property.hoa_reserve_funded_pct" data-t="pct" type="number" min="0" step="any" placeholder="from reserve study"></label>
-        <label class="f"><span>Special assessment ($)</span><input data-p="property.hoa_special_assessment" type="number" min="0" step="any"></label>
-        <label class="f"><span>…due in year</span><input data-p="property.hoa_assessment_year" type="number" min="0" max="40" step="any"></label>
-      </div>
-      <p class="hint">The dues history sets this HOA's own growth rate, fading to the long run (insurance + upkeep). Reserves under 30% funded usually mean a special assessment.</p>
-    </div>
-  </details>
-
   <details class="sec" open>
     <summary>Purchase &amp; closing</summary>
     <div class="sec-body">
@@ -289,51 +288,6 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       </div>
     </div>
   </details>
-
-  <details class="sec">
-    <summary>Components <small>ages from the inspection</small></summary>
-    <div class="sec-body">
-      <div class="grid">
-        <label class="f"><span>Roof material</span>
-          <select data-p="components.roof_material">
-            <option value="asphalt_3tab">Asphalt 3-tab</option><option value="architectural">Architectural shingle</option>
-            <option value="metal">Metal</option><option value="tile">Tile</option><option value="slate">Slate</option>
-            <option value="flat">Flat / membrane</option></select></label>
-        <label class="f"><span>Roof pitch</span>
-          <select data-p="components.roof_pitch"><option value="low">Low</option><option value="medium">Medium</option><option value="steep">Steep</option></select></label>
-        <label class="f"><span>Stories</span><input data-p="property.stories" type="number" min="1" max="60" step="any"></label>
-      </div>
-      <table class="edit" id="components">
-        <thead><tr><th>Component</th><th>Age (yrs)</th><th>Cost $</th><th>Life</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <p class="hint">Leave an age blank if unknown: the age-based upkeep covers it. A known age gets a real replacement date and cost (roof sized from footprint, pitch and material). Blank cost and life use typical 2026 figures, shown grey.</p>
-    </div>
-  </details>
-
-  <details class="sec" open>
-    <summary>Fixer-upper (distressed)</summary>
-    <div class="sec-body">
-      <label data-term="brrrr" class="check"><input type="checkbox" id="rehabOn"><span>This property needs a rehab<small>Buy, renovate, rent, optionally refinance (BRRRR).</small></span></label>
-      <div id="rehabFields" class="grid">
-        <label class="f"><span>Rehab budget ($)</span><input data-p="rehab.budget" type="number" min="0" step="any"></label>
-        <label class="f"><span>Months (no rent)</span><input data-p="rehab.months" type="number" min="0" max="24" step="any"></label>
-        <label class="f"><span>Contingency (%)</span><input data-p="rehab.contingency_pct" data-t="pct" type="number" min="0" step="any"></label>
-        <label data-term="arv" class="f"><span>After-repair value ($)</span><input data-p="rehab.arv" type="number" min="1" step="any" placeholder="auto: zip $/sqft"></label>
-        <label class="f"><span>Effective age after (yrs)</span><input data-p="rehab.effective_age_after" type="number" min="0" step="any" placeholder="auto"></label>
-        <label class="f"><span>Holding utilities ($/mo)</span><input data-p="rehab.holding_utilities_monthly" type="number" min="0" step="any"></label>
-        <label data-term="brrrr" class="check f wide"><input type="checkbox" data-p="rehab.refinance" id="refiOn"><span>Cash-out refinance after the rehab</span></label>
-        <div id="refiFields" class="grid f wide">
-          <label class="f"><span>Refi in month</span><input data-p="rehab.refi_month" type="number" min="1" step="any" placeholder="auto: rehab + 6"></label>
-          <label class="f"><span>Refi loan-to-value (%)</span><input data-p="rehab.refi_ltv" data-t="pct" type="number" min="1" max="100" step="any"></label>
-          <label class="f"><span>Refi rate (%)</span><input data-p="rehab.refi_rate" data-t="pct" type="number" min="0" step="any" placeholder="auto: loan rate"></label>
-          <label class="f"><span>Refi term (yrs)</span><input data-p="rehab.refi_term_years" type="number" min="1" max="40" step="any"></label>
-          <label class="f"><span>Refi costs (% of loan)</span><input data-p="rehab.refi_cost_pct" data-t="pct" type="number" min="0" step="any"></label>
-        </div>
-      </div>
-    </div>
-  </details>
-
   <details class="sec" open>
     <summary>Financing</summary>
     <div class="sec-body">
@@ -364,7 +318,6 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Leave the rate blank and it's priced from the weekly market rate, your credit score, down payment and occupancy. A lender quote overrides it.</p>
     </div>
   </details>
-
   <details class="sec">
     <summary>Management <small id="mgmtLabel"></small></summary>
     <div class="sec-body">
@@ -386,7 +339,75 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Results compare both ways. Value your time above $0 to make the comparison fair.</p>
     </div>
   </details>
-
+  <details class="sec">
+    <summary>Your buy box</summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label data-term="margin-of-safety" class="f"><span>Margin of safety (%)</span><input data-p="targets.margin_of_safety_pct" data-t="pct" type="number" min="0" max="90" step="any"></label>
+        <label data-term="estimate-allowance" class="f"><span>Estimate allowance (%)</span><input data-p="targets.estimate_allowance_pct" data-t="pct" type="number" min="0" step="any"></label>
+        <label data-term="cash-on-cash" class="f"><span>Min cash-on-cash (%)</span><input data-p="targets.min_cash_on_cash" data-t="pct" data-null type="number" step="any" placeholder="off"></label>
+        <label data-term="cash-flow" class="f"><span>Min cash flow ($/unit/mo)</span><input data-p="targets.min_monthly_cash_flow_per_unit" data-null type="number" step="any" placeholder="off"></label>
+        <label data-term="dscr" class="f"><span>Min DSCR (x)</span><input data-p="targets.min_dscr" data-null type="number" min="0" step="any" placeholder="off"></label>
+        <label data-term="irr" class="f"><span>Min after-tax IRR (%)</span><input data-p="targets.min_irr" data-t="pct" data-null type="number" step="any" placeholder="off"></label>
+      </div>
+      <p class="hint">Max offer = highest price meeting every target, minus the margin of safety. Leave a target blank to switch it off.</p>
+    </div>
+  </details>
+  <h2 class="in-h">Fine-tune (optional)<small>Defaults are filled in; open any section to refine it</small></h2>
+  <details class="sec">
+    <summary>HOA <small>dues history &amp; reserves</small></summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f wide"><span>Past monthly dues, oldest first</span><input id="hoaHistory" placeholder="e.g. 310, 330, 355, 380"></label>
+        <label class="f"><span>Reserves funded (%)</span><input data-p="property.hoa_reserve_funded_pct" data-t="pct" type="number" min="0" step="any" placeholder="from reserve study"></label>
+        <label class="f"><span>Special assessment ($)</span><input data-p="property.hoa_special_assessment" type="number" min="0" step="any"></label>
+        <label class="f"><span>…due in year</span><input data-p="property.hoa_assessment_year" type="number" min="0" max="40" step="any"></label>
+      </div>
+      <p class="hint">The dues history sets this HOA's own growth rate, fading to the long run (insurance + upkeep). Reserves under 30% funded usually mean a special assessment.</p>
+    </div>
+  </details>
+  <details class="sec">
+    <summary>Fixer-upper (distressed)</summary>
+    <div class="sec-body">
+      <label data-term="brrrr" class="check"><input type="checkbox" id="rehabOn"><span>This property needs a rehab<small>Buy, renovate, rent, optionally refinance (BRRRR).</small></span></label>
+      <div id="rehabFields" class="grid">
+        <label class="f"><span>Rehab budget ($)</span><input data-p="rehab.budget" type="number" min="0" step="any"></label>
+        <label class="f"><span>Months (no rent)</span><input data-p="rehab.months" type="number" min="0" max="24" step="any"></label>
+        <label class="f"><span>Contingency (%)</span><input data-p="rehab.contingency_pct" data-t="pct" type="number" min="0" step="any"></label>
+        <label data-term="arv" class="f"><span>After-repair value ($)</span><input data-p="rehab.arv" type="number" min="1" step="any" placeholder="auto: zip $/sqft"></label>
+        <label class="f"><span>Effective age after (yrs)</span><input data-p="rehab.effective_age_after" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Holding utilities ($/mo)</span><input data-p="rehab.holding_utilities_monthly" type="number" min="0" step="any"></label>
+        <label data-term="brrrr" class="check f wide"><input type="checkbox" data-p="rehab.refinance" id="refiOn"><span>Cash-out refinance after the rehab</span></label>
+        <div id="refiFields" class="grid f wide">
+          <label class="f"><span>Refi in month</span><input data-p="rehab.refi_month" type="number" min="1" step="any" placeholder="auto: rehab + 6"></label>
+          <label class="f"><span>Refi loan-to-value (%)</span><input data-p="rehab.refi_ltv" data-t="pct" type="number" min="1" max="100" step="any"></label>
+          <label class="f"><span>Refi rate (%)</span><input data-p="rehab.refi_rate" data-t="pct" type="number" min="0" step="any" placeholder="auto: loan rate"></label>
+          <label class="f"><span>Refi term (yrs)</span><input data-p="rehab.refi_term_years" type="number" min="1" max="40" step="any"></label>
+          <label class="f"><span>Refi costs (% of loan)</span><input data-p="rehab.refi_cost_pct" data-t="pct" type="number" min="0" step="any"></label>
+        </div>
+      </div>
+    </div>
+  </details>
+  <details class="sec">
+    <summary>Components <small>ages from the inspection</small></summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f"><span>Roof material</span>
+          <select data-p="components.roof_material">
+            <option value="asphalt_3tab">Asphalt 3-tab</option><option value="architectural">Architectural shingle</option>
+            <option value="metal">Metal</option><option value="tile">Tile</option><option value="slate">Slate</option>
+            <option value="flat">Flat / membrane</option></select></label>
+        <label class="f"><span>Roof pitch</span>
+          <select data-p="components.roof_pitch"><option value="low">Low</option><option value="medium">Medium</option><option value="steep">Steep</option></select></label>
+        <label class="f"><span>Stories</span><input data-p="property.stories" type="number" min="1" max="60" step="any"></label>
+      </div>
+      <table class="edit" id="components">
+        <thead><tr><th>Component</th><th>Age (yrs)</th><th>Cost $</th><th>Life</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="hint">Leave an age blank if unknown: the age-based upkeep covers it. A known age gets a real replacement date and cost (roof sized from footprint, pitch and material). Blank cost and life use typical 2026 figures, shown grey.</p>
+    </div>
+  </details>
   <details class="sec">
     <summary>Income &amp; expenses</summary>
     <div class="sec-body">
@@ -409,7 +430,6 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Property tax is reassessed at your price, not the seller's bill. Tick "quote" for figures you have in writing: estimates get the allowance below.</p>
     </div>
   </details>
-
   <details class="sec">
     <summary>Regulatory checklist</summary>
     <div class="sec-body">
@@ -417,7 +437,6 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Rules that usually apply to this property, with typical costs. Local rules vary: untick what doesn't apply.</p>
     </div>
   </details>
-
   <details class="sec">
     <summary>Growth &amp; inflation</summary>
     <div class="sec-body">
@@ -434,7 +453,6 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Annual %, long-run. Each line grows with its own index: rent with CPI rent (~3.3%/yr since 1990), insurance faster than CPI, repairs with construction labor.</p>
     </div>
   </details>
-
   <details class="sec">
     <summary>Your tax situation</summary>
     <div class="sec-body">
@@ -454,7 +472,6 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">2026 federal brackets. Estimates only, not tax advice.</p>
     </div>
   </details>
-
   <details class="sec">
     <summary>Hold &amp; exit</summary>
     <div class="sec-body">
@@ -462,21 +479,6 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
         <label class="f"><span>Hold (years)</span><input data-p="exit.hold_years" type="number" min="1" max="40" step="any"></label>
         <label class="f"><span>Selling costs (%)</span><input data-p="exit.selling_cost_pct" data-t="pct" type="number" min="0" step="any"></label>
       </div>
-    </div>
-  </details>
-
-  <details class="sec" open>
-    <summary>Your buy box</summary>
-    <div class="sec-body">
-      <div class="grid">
-        <label data-term="margin-of-safety" class="f"><span>Margin of safety (%)</span><input data-p="targets.margin_of_safety_pct" data-t="pct" type="number" min="0" max="90" step="any"></label>
-        <label data-term="estimate-allowance" class="f"><span>Estimate allowance (%)</span><input data-p="targets.estimate_allowance_pct" data-t="pct" type="number" min="0" step="any"></label>
-        <label data-term="cash-on-cash" class="f"><span>Min cash-on-cash (%)</span><input data-p="targets.min_cash_on_cash" data-t="pct" data-null type="number" step="any" placeholder="off"></label>
-        <label data-term="cash-flow" class="f"><span>Min cash flow ($/unit/mo)</span><input data-p="targets.min_monthly_cash_flow_per_unit" data-null type="number" step="any" placeholder="off"></label>
-        <label data-term="dscr" class="f"><span>Min DSCR (x)</span><input data-p="targets.min_dscr" data-null type="number" min="0" step="any" placeholder="off"></label>
-        <label data-term="irr" class="f"><span>Min after-tax IRR (%)</span><input data-p="targets.min_irr" data-t="pct" data-null type="number" step="any" placeholder="off"></label>
-      </div>
-      <p class="hint">Max offer = highest price meeting every target, minus the margin of safety. Leave a target blank to switch it off.</p>
     </div>
   </details>
 </form>
@@ -973,6 +975,37 @@ function breakdownCard(b) {
   return card("Where the profit comes from", `total ${money(b.total)} after tax`, box);
 }
 
+// Results tabs: one plain question each, so people open only what they want to see.
+const TABS = [
+  ["overview", "Should I buy it?", "Warnings, targets, key numbers"],
+  ["returns", "What will I earn?", "Cash flow, profit, sell or keep"],
+  ["money", "How do I pay for it?", "Loan, cash to close, down payment"],
+  ["risks", "What could go wrong?", "Inspection, stress tests, costs"],
+  ["details", "Every number", "Year by year, sale, assumptions"],
+];
+const TAB_KEY = "deal-evaluator:tab";
+let TAB = "overview";
+try { const t = localStorage.getItem(TAB_KEY); if (TABS.some(([k]) => k === t)) TAB = t; } catch { /* private mode */ }
+function setTab(k, focus) {
+  TAB = k;
+  try { localStorage.setItem(TAB_KEY, k); } catch { /* private mode */ }
+  for (const b of $$(".tab", out)) {
+    const on = b.dataset.tab === k;
+    b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1;
+    if (on && focus) b.focus();
+  }
+  for (const p of $$(".panel", out)) p.hidden = p.id !== `panel-${k}`;
+  drawCharts();   // charts size to their container, which was hidden
+}
+out.addEventListener("click", e => { const b = e.target.closest(".tab"); if (b) setTab(b.dataset.tab); });
+out.addEventListener("keydown", e => {
+  if (!e.target.matches(".tab") || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+  e.preventDefault();
+  const i = TABS.findIndex(([k]) => k === TAB), n = TABS.length;
+  const j = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + (e.key === "ArrowRight" ? 1 : n - 1)) % n;
+  setTab(TABS[j][0], true);
+});
+
 let LAST = null;
 function render(r) {
   LAST = r;
@@ -987,16 +1020,21 @@ function render(r) {
     tr.querySelector("[name=life]").placeholder = c.life;
   }
   renderCompliance(r.compliance);
-  const group = (n, title) => h("h2", { class: "group-h" }, `${n} · ${title}`);
-  out.replaceChildren(...[
-    group(1, "The decision"), verdictCard(r), warningsCard(r.warnings), targetsCard(r.offer),
-    group(2, "Returns"), kpiCard(r), compareCard(r.management), holdCard(r),
-    h("div", { class: "split" }, equityCard(r), breakdownCard(r.returns)),
-    group(3, "Loan and cash"), h("div", { class: "split" }, financeCard(r), cashCard(r.acquisition)), dpCard(r),
-    group(4, "Costs and risks"), inspectionCard(r.inspection),
-    h("div", { class: "split" }, proformaCard(r.stabilized, r), stressCard(r.stress)), componentsCard(r.components),
-    group(5, "Details"), yearsCard(r.years), h("div", { class: "split" }, saleCard(r.sale), marketCard(r.market)),
-    assumptionsCard(r.assumptions)].filter(Boolean));
+  const panels = {
+    overview: [warningsCard(r.warnings), targetsCard(r.offer), kpiCard(r)],
+    returns: [compareCard(r.management), holdCard(r), h("div", { class: "split" }, equityCard(r), breakdownCard(r.returns))],
+    money: [h("div", { class: "split" }, financeCard(r), cashCard(r.acquisition)), dpCard(r)],
+    risks: [inspectionCard(r.inspection), h("div", { class: "split" }, proformaCard(r.stabilized, r), stressCard(r.stress)),
+      componentsCard(r.components)],
+    details: [yearsCard(r.years), h("div", { class: "split" }, saleCard(r.sale), marketCard(r.market)), assumptionsCard(r.assumptions)],
+  };
+  const tabs = h("div", { class: "tabs", role: "tablist", "aria-label": "Results" }, TABS.map(([k, title, sub]) =>
+    h("button", { type: "button", class: "tab", role: "tab", id: `tab-${k}`, "aria-controls": `panel-${k}`,
+      "aria-selected": String(k === TAB), tabindex: k === TAB ? "0" : "-1", "data-tab": k },
+      h("b", null, title, k === "overview" && r.warnings.length ? h("span", { class: "count", "aria-label": `${r.warnings.length} warnings` }, r.warnings.length) : null),
+      h("small", null, sub))));
+  out.replaceChildren(verdictCard(r), tabs, ...TABS.map(([k]) => h("div", { class: "panel", role: "tabpanel",
+    id: `panel-${k}`, "aria-labelledby": `tab-${k}`, hidden: k !== TAB }, ...panels[k].filter(Boolean))));
   drawCharts();
 }
 
