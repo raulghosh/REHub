@@ -130,6 +130,13 @@ tr.miss td { background: color-mix(in srgb, var(--crit) 6%, transparent); }
 #tipbox .fx { margin: 6px 0; padding: 6px 8px; border-radius: 6px; background: var(--surface); font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
 #tipbox .rule { color: var(--ink-2); }
 #tipbox a { font-weight: 600; color: var(--s1); }
+dialog.modal { max-width: 540px; padding: 18px 22px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--ink); }
+dialog.modal::backdrop { background: rgba(0,0,0,.4); }
+dialog.modal h2 { font-size: 17px; margin-bottom: 10px; }
+dialog.modal ol { padding-left: 20px; display: grid; gap: 8px; }
+a.bm { display: inline-block; margin-top: 6px; padding: 8px 14px; border-radius: 8px; background: var(--s1); color: #fff; font-weight: 650; text-decoration: none; cursor: grab; }
+.start.import { background: color-mix(in srgb, var(--warn) 12%, var(--card)); border-color: color-mix(in srgb, var(--warn) 50%, var(--border)); color: var(--ink); }
+.start.import button { float: right; margin: -3px -4px 0 8px; padding: 0 7px; border: 0; background: none; font-size: 16px; color: var(--muted); }
 .start { margin: 0 0 10px; padding: 9px 12px; border-radius: 10px; font-size: 13px; color: var(--ink-2); background: color-mix(in srgb, var(--s1) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--s1) 25%, var(--border)); }
 .start b { color: var(--s1); }
 .verdict-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -219,6 +226,7 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
     <p>Buy-and-hold rentals for individual investors: houses, condos, small multifamily and fixer-uppers.</p>
   </div>
   <div class="top-actions">
+    <button type="button" id="bmOpen">From a listing</button>
     <a class="btn" href="/guide" target="_blank" rel="noopener">Investor guide</a>
     <button type="button" id="chatOpen">Ask Claude</button>
     <button type="button" id="reset">Reset to sample</button>
@@ -489,6 +497,17 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
 </main>
 
 <div id="tipbox" role="tooltip" hidden></div>
+
+<dialog id="bmDialog" class="modal" aria-labelledby="bmTitle">
+  <h2 id="bmTitle">Evaluate a listing from Zillow, Redfin or Realtor.com</h2>
+  <ol>
+    <li>Drag this button to your browser's bookmarks bar:<br><a id="bmLink" class="bm" href="#">Evaluate listing</a></li>
+    <li>Open a home's listing on Zillow, Redfin or Realtor.com.</li>
+    <li>Click <b>Evaluate listing</b> in your bookmarks bar. This page opens with the price, beds, baths, size, year built, zip and HOA filled in.</li>
+  </ol>
+  <p class="hint">It reads the page you're looking at, in your own browser; nothing is sent to this server until the evaluator opens. Listing pages change, so always check the numbers it fills in. On a phone, paste the listing text into Ask Claude instead.</p>
+  <form method="dialog"><button>Close</button></form>
+</dialog>
 
 <aside id="chat" class="chat" aria-label="Ask Claude" hidden>
   <div class="chat-head">
@@ -1333,6 +1352,120 @@ try {
 $("#keyBox").open = !$("#apiKey").value;
 $("#chatLog").replaceChildren(hello());
 
+// ---------- import from a listing page ----------
+// The bookmarklet: this function's source runs on the listing page the user is viewing (Zillow,
+// Redfin, Realtor.com), reads what's on it and opens this app with the details in the URL hash.
+// It can't load code from here (listing sites' CSP), so everything it needs is inside it.
+// ponytail: text patterns, not per-site selectors; a redesign that renames "bd" breaks one regex.
+function grabListing(app) {
+  if (location.origin === app) return alert("Drag this button to your bookmarks bar, then click it on a listing.");
+  const text = document.body.innerText;
+  const meta = [...document.querySelectorAll('meta[property="og:title"],meta[property="og:description"],meta[name="description"]')]
+    .map(m => m.content).join("\n") + "\n" + document.title;
+  const top = meta + "\n" + text.slice(0, 30000);
+  const num = v => { const n = parseFloat(String(v ?? "").replace(/[^\d.]/g, "")); return isFinite(n) && n > 0 ? n : null; };
+  const find = re => { const m = top.match(re); return m ? m[1] : null; };
+  const ld = {};
+  const walk = o => {
+    if (Array.isArray(o)) return o.forEach(walk);
+    if (!o || typeof o !== "object") return;
+    if (o.offers && !ld.price) ld.price = [].concat(o.offers)[0].price;
+    if (o.floorSize && !ld.sqft) ld.sqft = o.floorSize.value ?? o.floorSize;
+    if (o.numberOfBedrooms && !ld.beds) ld.beds = o.numberOfBedrooms;
+    if (o.numberOfBathroomsTotal && !ld.baths) ld.baths = o.numberOfBathroomsTotal;
+    if (o.yearBuilt && !ld.year) ld.year = o.yearBuilt;
+    if (o.address && o.address.postalCode && !ld.zip) {
+      ld.zip = o.address.postalCode;
+      ld.address = [o.address.streetAddress, o.address.addressLocality, o.address.addressRegion].filter(Boolean).join(", ");
+    }
+    Object.values(o).forEach(walk);
+  };
+  for (const el of document.querySelectorAll('script[type="application/ld+json"]')) { try { walk(JSON.parse(el.textContent)); } catch (e) { /* not JSON */ } }
+  let price = num(ld.price);
+  for (const m of top.matchAll(/\$\s?(\d{1,3}(?:,\d{3})+)(?![\d,])(?!\s*(?:\/\s*mo|per month|monthly))/g)) {
+    if (price) break;
+    if (num(m[1]) >= 20000) price = num(m[1]);
+  }
+  let sqft = num(ld.sqft);
+  for (const m of top.matchAll(/(\d{1,3}(?:,\d{3})*|\d{3,})\s*(?:sq\.?\s?ft\.?|sqft|square feet)(?!\s*lot)/gi)) {
+    if (sqft) break;
+    if (!/lot/i.test(top.slice(Math.max(0, m.index - 20), m.index))) sqft = num(m[1]);
+  }
+  const words = (meta + "\n" + text.slice(0, 3000)).toLowerCase();
+  // the label and the amount may sit on separate lines ("HOA Dues" / "$165/mo"); $0 is a real answer
+  const hoa = find(/hoa[^\n$]{0,30}\n?[^\n$]{0,10}\$\s?([\d,]+)/i) ?? find(/\$\s?([\d,]+)\s*(?:\/\s*mo|monthly|per month)?\s*hoa/i);
+  const units = /\bduplex\b/.test(words) ? 2 : /\btriplex\b/.test(words) ? 3 : /\b(fourplex|quadplex|4-plex)\b/.test(words) ? 4 : 1;
+  const d = {
+    source: location.hostname.replace(/^www\./, ""), url: location.href,
+    price, sqft,
+    beds: num(ld.beds) || num(find(/(\d+(?:\.\d+)?)\s*(?:bd|bds|beds?|bedrooms?)\b/i)),
+    baths: num(ld.baths) || num(find(/(\d+(?:\.\d+)?)\s*(?:ba|baths?|bathrooms?)\b/i)),
+    year: num(ld.year) || num(find(/(?:built in|year built)\s*:?\s*(\d{4})/i)),
+    zip: ld.zip || find(/\b[A-Z]{2},?\s+(\d{5})(?:-\d{4})?\b/),
+    address: ld.address || find(/^(\d+ [^\n]{3,80}?,\s*[^\n,]+,\s*[A-Z]{2},?\s+\d{5})/m),
+    hoa: /\bno hoa\b|hoa[^\n$]{0,20}\b(?:none|no)\b/i.test(top) ? 0 : hoa == null ? null : parseFloat(hoa.replace(/,/g, "")),
+    rent: num(find(/(?:rent(?:al)?\s*(?:zestimate|estimate)|estimated\s+(?:monthly\s+)?rent)[^$\n]{0,20}\$\s?([\d,]+)/i)),
+    type: units > 1 ? "multi_2_4" : /\bcondo/.test(words) ? "condo" : /\btownho/.test(words) ? "townhouse" : "single_family",
+    units,
+  };
+  if (!d.price && !d.zip) return alert("No listing details found on this page. Open a single home's listing, or paste its text into Ask Claude.");
+  window.open(app + "/#listing=" + encodeURIComponent(JSON.stringify(d)), "_blank");
+}
+
+function readListing() {
+  const m = location.hash.match(/^#listing=(.+)$/);
+  if (!m) return null;
+  history.replaceState(null, "", location.pathname + location.search);   // a reload shouldn't re-import
+  try { return JSON.parse(decodeURIComponent(m[1])); } catch { return null; }
+}
+
+// The hash is untrusted (anyone can craft a link): keep only sane numbers and plain strings.
+function applyListing(base, x) {
+  const n = (v, lo, hi) => { if (v == null || v === "") return null; v = Number(v); return isFinite(v) && v >= lo && v <= hi ? v : null; };
+  const L = {
+    price: n(x.price, 1000, 1e9), sqft: n(x.sqft, 200, 200000), beds: n(x.beds, 0, 30), baths: n(x.baths, 0, 30),
+    year: n(x.year, 1700, new Date().getFullYear() + 2), hoa: n(x.hoa, 0, 20000), rent: n(x.rent, 100, 100000),
+    zip: /^\d{5}$/.test(x.zip) ? x.zip : null, units: n(x.units, 1, 4) || 1,
+    type: ["single_family", "townhouse", "condo", "multi_2_4"].includes(x.type) ? x.type : "single_family",
+    address: typeof x.address === "string" ? x.address.slice(0, 200) : "",
+    source: typeof x.source === "string" ? x.source.slice(0, 60) : "the listing",
+    url: typeof x.url === "string" && /^https:\/\//.test(x.url) ? x.url : null,
+  };
+  const d = structuredClone(base), u = L.units;
+  d.property = { ...d.property, address: L.address, state: "", property_type: L.type,
+    zip_code: L.zip ?? d.property.zip_code, year_built: L.year ?? d.property.year_built, sqft: L.sqft ?? d.property.sqft,
+    hoa_monthly: L.hoa ?? 0, hoa_history: [], hoa_reserve_funded_pct: null, hoa_special_assessment: 0,
+    units: Array.from({ length: u }, () => ({ beds: Math.max(0, Math.round((L.beds ?? 3 * u) / u)),
+      baths: Math.max(1, Math.round((L.baths ?? 2 * u) / u * 2) / 2), rent: L.rent ? Math.round(L.rent / u) : 0 })) };
+  d.purchase = { ...d.purchase, price: L.price ?? d.purchase.price, market_value: null, known_repairs: [],
+    seller_credits: 0, inspection_done: false };
+  d.components = { ...(d.components || {}), known_ages: [] };
+  d.rehab = null;
+  return [d, L];
+}
+
+function showImport(L) {
+  const got = [L.price && money(L.price), L.beds != null && `${L.beds} bd`, L.baths != null && `${L.baths} ba`,
+    L.sqft && `${L.sqft.toLocaleString()} sqft`, L.year && `built ${L.year}`, L.zip && `zip ${L.zip}`,
+    L.hoa != null && (L.hoa ? `HOA ${money(L.hoa)}/mo` : "no HOA"), L.rent && `rent estimate ${money(L.rent)}/mo`].filter(Boolean);
+  const missing = [!L.price && "price", !L.zip && "zip code", L.beds == null && "beds", L.baths == null && "baths",
+    !L.sqft && "size", !L.year && "year built", !L.rent && "rent"].filter(Boolean);
+  const close = h("button", { type: "button", "aria-label": "Dismiss" }, "×");
+  const note = h("p", { class: "start import", role: "status" }, close,
+    h("b", null, "Filled in from "), L.url ? h("a", { href: L.url, target: "_blank", rel: "noopener noreferrer" }, L.source) : L.source,
+    `: ${got.join(" · ")}. `,
+    missing.length ? h("b", null, `Not on the page: ${missing.join(", ")}. Enter ${missing.length > 1 ? "them" : "it"} below. `) : null,
+    L.rent ? "The rent is the listing site's estimate: check it against leased comps. " : null,
+    "Your financing, targets and tax settings are kept.");
+  close.addEventListener("click", () => note.remove());
+  form.prepend(note);
+  if (!L.rent) $$("#units [name=rent]")[0]?.focus();
+}
+
+$("#bmLink").href = "javascript:" + encodeURIComponent(`(${grabListing})(${JSON.stringify(location.origin)})`);
+$("#bmLink").addEventListener("click", e => { e.preventDefault(); alert("Drag this button to your bookmarks bar, then click it on a listing."); });
+$("#bmOpen").addEventListener("click", () => $("#bmDialog").showModal());
+
 (async function init() {
   try {
     DEFAULTS = await (await fetch("/api/defaults")).json();
@@ -1342,7 +1475,14 @@ $("#chatLog").replaceChildren(hello());
   }
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(STORE) || "null"); } catch { saved = null; }
-  fill(saved && saved.property ? saved : DEFAULTS.deal);
+  const base = saved && saved.property ? saved : DEFAULTS.deal, listing = readListing();
+  if (listing) {
+    const [deal, L] = applyListing(base, listing);
+    fill(deal);
+    showImport(L);
+  } else {
+    fill(base);
+  }
   run();
 })();
 </script>
