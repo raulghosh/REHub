@@ -11,7 +11,7 @@
   --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
   --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
   --s1: #2a78d6; --s2: #eb6834; --neg: #e34948;
-  --good: #0ca30c; --good-text: #006300; --warn: #fab219; --crit: #d03b3b;
+  --good: #0ca30c; --good-text: #006300; --warn: #fab219; --warn-text: #8a5a00; --crit: #d03b3b; --crit-text: #b42323;
   --field: #ffffff; --focus: #2a78d6;
 }
 @media (prefers-color-scheme: dark) {
@@ -20,7 +20,7 @@
     --page: #0d0d0d; --surface: #1a1a19; --card: #1a1a19;
     --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
     --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
-    --s1: #3987e5; --s2: #d95926; --neg: #e66767; --good-text: #0ca30c;
+    --s1: #3987e5; --s2: #d95926; --neg: #e66767; --good-text: #0ca30c; --warn-text: #f5c04a; --crit-text: #f08080;
     --field: #232322; --focus: #3987e5;
   }
 }
@@ -85,9 +85,30 @@ table.edit button { padding: 4px 8px; }
 .row-actions { display: flex; gap: 8px; }
 
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
-.card > h2 { font-size: 15px; margin-bottom: 10px; }
-.card > h2 small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
-.verdict { display: grid; gap: 12px; }
+.card > h2, .card > h3 { font-size: 15px; margin-bottom: 10px; }
+.card > h2 small, .card > h3 small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
+.verdict { display: grid; gap: 12px; border-left: 6px solid var(--v); background: color-mix(in srgb, var(--v) 8%, var(--card)); }
+.verdict.buy { --v: var(--good); --vt: var(--good-text); } .verdict.negotiate { --v: var(--warn); --vt: var(--warn-text); } .verdict.pass { --v: var(--crit); --vt: var(--crit-text); }
+.verdict .pill { font-size: 15px; padding: 7px 15px; background: var(--card); border-color: var(--v); }
+.verdict .hero .big { color: var(--vt); }
+.gap { margin: 0; font-weight: 650; color: var(--vt); }
+.gap.ok { color: var(--good-text); }
+.alert { border-left: 6px solid var(--warn); background: color-mix(in srgb, var(--warn) 9%, var(--card)); }
+.group-h { display: flex; align-items: center; gap: 10px; margin: 14px 0 -2px; font-size: 13px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--s1); }
+.group-h:first-child { margin-top: 0; }
+.group-h::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--s1) 30%, var(--border)); }
+.tile.good { border-left: 4px solid var(--good); } .tile.good .value { color: var(--good-text); }
+.tile.bad { border-left: 4px solid var(--crit); } .tile.bad .value { color: var(--crit-text); }
+.tile.warn { border-left: 4px solid var(--warn); } .tile.warn .value { color: var(--warn-text); }
+.ok-text { color: var(--good-text); font-weight: 600; } .bad-text { color: var(--crit-text); font-weight: 600; }
+tr.miss td { background: color-mix(in srgb, var(--crit) 6%, transparent); }
+.pbar { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.pbar i { display: inline-block; width: 64px; height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; }
+.pbar i b { display: block; height: 100%; background: var(--warn); }
+.f.key > span { color: var(--s1); font-weight: 600; }
+.f.key input, input.key { border-color: color-mix(in srgb, var(--s1) 55%, var(--border)); background: color-mix(in srgb, var(--s1) 6%, var(--field)); }
+.start { margin: 0 0 10px; padding: 9px 12px; border-radius: 10px; font-size: 13px; color: var(--ink-2); background: color-mix(in srgb, var(--s1) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--s1) 25%, var(--border)); }
+.start b { color: var(--s1); }
 .verdict-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; font-weight: 700; letter-spacing: .04em; font-size: 13px; border: 1px solid var(--border); }
 .pill i { font-style: normal; width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-size: 12px; }
@@ -182,13 +203,14 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
 
 <main class="layout">
 <form id="deal" class="inputs" novalidate autocomplete="off">
+  <p class="start">Start with the <b>highlighted fields</b>: zip code, price and rent. Everything else has a sensible default you can refine.</p>
 
   <details class="sec" open>
     <summary>Property</summary>
     <div class="sec-body">
       <div class="grid">
         <label class="f wide"><span>Address (optional)</span><input data-p="property.address" data-t="str" maxlength="200"></label>
-        <label class="f"><span>Zip code</span><input data-p="property.zip_code" data-t="str" inputmode="numeric" pattern="\d{5}" maxlength="5" required></label>
+        <label class="f key"><span>Zip code</span><input data-p="property.zip_code" data-t="str" inputmode="numeric" pattern="\d{5}" maxlength="5" required></label>
         <label class="f"><span>Type</span>
           <select data-p="property.property_type" id="ptype">
             <option value="single_family">Single-family</option>
@@ -228,12 +250,20 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
     <summary>Purchase &amp; closing</summary>
     <div class="sec-body">
       <div class="grid">
-        <label class="f"><span>Price / your offer ($)</span><input data-p="purchase.price" type="number" min="1" step="any" required></label>
+        <label class="f key"><span>Price / your offer ($)</span><input data-p="purchase.price" type="number" min="1" step="any" required></label>
         <label class="f"><span>Market value ($)</span><input data-p="purchase.market_value" type="number" min="1" step="any" placeholder="auto: zip $/sqft"></label>
         <label class="f"><span>Closing costs (%) <label class="q"><input type="checkbox" data-known="closing">quote</label></span><input data-p="purchase.closing_costs_pct" data-t="pct" type="number" min="0" step="any"></label>
         <label class="f"><span>Inspections ($) <label class="q"><input type="checkbox" data-known="inspection">quote</label></span><input data-p="purchase.inspection_costs" type="number" min="0" step="any" placeholder="auto"></label>
         <label class="f"><span>Other costs ($)</span><input data-p="purchase.other_costs" type="number" min="0" step="any"></label>
         <label class="f"><span>Seller credits ($)</span><input data-p="purchase.seller_credits" type="number" min="0" step="any"></label>
+        <label class="f"><span>Who pays for inspection findings</span><select data-p="purchase.bargaining">
+          <option value="auto">Auto (from days on market)</option>
+          <option value="buyers">Buyer's market: seller pays most</option>
+          <option value="balanced">Balanced: split it</option>
+          <option value="sellers">Seller's market: you pay most</option>
+          <option value="as_is">As-is sale: you pay all</option>
+        </select></label>
+        <label class="check"><input type="checkbox" data-p="purchase.inspection_done"><span>Already inspected<small>Enter what it found under known repairs</small></span></label>
       </div>
       <p class="hint">Closing: title, escrow, recording, transfer tax, attorney. Inspections: home, sewer scope, termite. Lender fees are under Financing.</p>
       <div>
@@ -517,7 +547,7 @@ function setPath(o, p, v) {
 function unitRow(u, i) {
   const num = (name, v, min) => h("input", { name, type: "number", step: "any", min, value: v ?? "", "aria-label": `Unit ${i + 1} ${name}` });
   return h("tr", null, h("td", null, `#${i + 1}`), h("td", null, num("beds", u.beds, 0)),
-    h("td", null, num("baths", u.baths, 0)), h("td", null, num("rent", u.rent, 0)));
+    h("td", null, num("baths", u.baths, 0)), h("td", null, Object.assign(num("rent", u.rent, 0), { className: "key" })));
 }
 function setUnits(units) {
   $("#units tbody").replaceChildren(...units.map(unitRow));
@@ -678,7 +708,7 @@ function renderErrors(body) {
 
 // ---------- results ----------
 function card(title, sub, ...kids) {
-  return h("section", { class: "card" }, h("h2", null, title, sub ? h("small", null, sub) : null), ...kids);
+  return h("section", { class: "card" }, h("h3", null, title, sub ? h("small", null, sub) : null), ...kids);
 }
 function table(head, rows, opts = {}) {
   return h("div", { class: "tbl-wrap" }, h("table", { class: "data" },
@@ -687,14 +717,14 @@ function table(head, rows, opts = {}) {
       h("td", { class: (opts.cls && opts.cls[i]) || (opts.red && typeof c === "number" && c < 0 ? "neg" : null) },
         typeof c === "number" ? money(c) : c)))))));
 }
-const tile = (label, value, sub) => h("div", { class: "tile" }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), sub ? h("div", { class: "sub" }, sub) : null);
+const tile = (label, value, sub, state) => h("div", { class: `tile${state ? " " + state : ""}` }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), sub ? h("div", { class: "sub" }, sub) : null);
 const status = ok => h("span", { class: `status ${ok ? "ok" : "no"}` }, h("i", { "aria-hidden": "true" }, ok ? "✓" : "✕"), ok ? "meets" : "misses");
 
 function verdictCard(r) {
   const o = r.offer, label = { buy: "BUY", negotiate: "NEGOTIATE", pass: "PASS" }[o.verdict];
   const icon = { buy: "✓", negotiate: "↔", pass: "✕" }[o.verdict];
   const isRehab = o.rule_70 != null;
-  return h("section", { class: "card verdict" },
+  return h("section", { class: `card verdict ${o.verdict}` },
     h("div", { class: "verdict-top" },
       h("span", { class: `pill ${o.verdict}` }, h("i", { "aria-hidden": "true" }, icon), label),
       h("p", { class: "summary" }, o.summary)),
@@ -705,6 +735,9 @@ function verdictCard(r) {
         h("div", { class: "mid" }, o.investment_value == null ? "None" : money(o.investment_value))),
       h("div", null, h("div", { class: "label" }, isRehab ? "After-repair value" : "Market value"),
         h("div", { class: "mid" }, money(o.market_value)))),
+    o.max_offer == null ? null : o.price > o.max_offer
+      ? h("p", { class: "gap" }, `Your price is ${money(o.price - o.max_offer)} above the max offer.`)
+      : h("p", { class: "gap ok" }, `Your price is ${money(o.max_offer - o.price)} below the max offer.`),
     h("div", { class: "facts" },
       h("span", null, "Price ", h("b", null, money(o.price))),
       h("span", null, "Limited by ", h("b", null, o.limited_by)),
@@ -717,19 +750,23 @@ function targetsCard(o) {
   const fmt = (name, v) => v == null ? "∞" : name.includes("cash flow") ? money(v) : name === "DSCR" ? times(v) : pct(v);
   return card("Your targets", "highest price that still meets each one",
     table(["Target", "Minimum", "At this price", "", "Max price"],
-      o.targets.map(t => ({ cells: [t.name, fmt(t.name, t.threshold), fmt(t.name, t.value), status(t.passed),
+      o.targets.map(t => ({ cls: t.passed ? null : "miss", cells: [t.name, fmt(t.name, t.threshold),
+        h("span", { class: t.passed ? "ok-text" : "bad-text" }, fmt(t.name, t.value)), status(t.passed),
         t.max_price == null ? "none" : money(t.max_price)] }))));
 }
 
 function kpiCard(r) {
   const m = r.metrics, a = r.acquisition, s = r.stabilized;
-  return card("Normal year", "after lease-up / rehab, before tax",
+  // green / red only where you set a target; everything else stays neutral
+  const vs = name => { const t = r.offer.targets.find(x => x.name === name); return t ? (t.passed ? "good" : "bad") : null; };
+  return card("Normal year", "after lease-up / rehab, before tax · green meets your target, red misses it",
     h("div", { class: "kpis" },
-      tile("Cash flow", `${money(m.monthly_cash_flow)}/mo`, m.monthly_cash_flow_per_unit !== m.monthly_cash_flow ? `${money(m.monthly_cash_flow_per_unit)}/unit` : `${money(m.monthly_cash_flow * 12)}/yr`),
-      tile("Cash-on-cash", m.cash_on_cash == null ? "∞" : pct(m.cash_on_cash), `on ${money(m.cash_left_in_deal)} in the deal`),
+      tile("Cash flow", `${money(m.monthly_cash_flow)}/mo`, m.monthly_cash_flow_per_unit !== m.monthly_cash_flow ? `${money(m.monthly_cash_flow_per_unit)}/unit` : `${money(m.monthly_cash_flow * 12)}/yr`,
+        m.monthly_cash_flow < 0 ? "bad" : vs("Monthly cash flow per unit")),
+      tile("Cash-on-cash", m.cash_on_cash == null ? "∞" : pct(m.cash_on_cash), `on ${money(m.cash_left_in_deal)} in the deal`, vs("Cash-on-cash")),
       tile("Cap rate", pct(m.cap_rate), `${pct(m.cap_rate_on_cost)} on all-in cost`),
-      tile("DSCR", m.dscr == null ? "no loan" : times(m.dscr), "lenders want 1.2x+"),
-      tile("After-tax IRR", pct(m.irr_after_tax), `${pct(m.irr_before_tax)} before tax`),
+      tile("DSCR", m.dscr == null ? "no loan" : times(m.dscr), "lenders want 1.2x+", m.dscr == null ? null : vs("DSCR")),
+      tile("After-tax IRR", pct(m.irr_after_tax), `${pct(m.irr_before_tax)} before tax`, vs("After-tax IRR")),
       tile("Equity multiple", times(m.equity_multiple), `over ${r.years.length} yrs, after tax`),
       tile("Cash to close", money(a.total_cash_needed), a.lender_reserves ? `+ ${money(a.lender_reserves)} reserves` : "all cash"),
       tile("Break-even occupancy", pct(m.break_even_occupancy, 0), "to cover costs + mortgage"),
@@ -806,7 +843,7 @@ function cashCard(a) {
     ["Down payment", a.down_payment], ["Closing costs", a.closing_costs], ["Lender fees & points", a.lender_costs],
     ["Inspections", a.inspections], ["Other costs", a.other_costs], ["Seller credits", -a.seller_credits],
     ["Rehab incl. contingency", a.rehab], ["Repairs & replacements at purchase", a.repairs_at_purchase],
-    ["Regulatory compliance", a.compliance_costs],
+    ["Regulatory compliance", a.compliance_costs], ["Inspection surprises (expected, your share)", a.inspection_risk],
   ].filter(([, v]) => Math.abs(v) > 0.5).map(([k, v]) => ({ cells: [k, v] }));
   rows.push({ cls: "total", cells: ["Cash to close", a.total_cash_needed] });
   return card("Cash to close", a.loan_amount ? `loan ${money(a.loan_amount)}` : "all cash",
@@ -873,7 +910,27 @@ function marketCard(m) {
 
 function warningsCard(list) {
   if (!list.length) return null;
-  return card("Watch out", null, h("ul", { class: "warnings" }, list.map(w => h("li", null, w))));
+  const c = card("Watch out", `${list.length} thing${list.length > 1 ? "s" : ""} to check`, h("ul", { class: "warnings" }, list.map(w => h("li", null, w))));
+  c.classList.add("alert");
+  return c;
+}
+
+function inspectionCard(x) {
+  if (x.done) return card("Inspection risk", "already inspected",
+    h("p", { class: "note" }, "No expected surprises added: what the inspection found belongs under Known repairs."));
+  const yours = f => f.probability * f.cost * x.buyer_share;
+  const rows = x.rows.map(f => ({ cells: [
+    h("div", null, f.label, h("small", { class: "muted", style: "display: block" }, f.note)),
+    h("span", { class: "pbar" }, h("i", { "aria-hidden": "true" }, h("b", { style: `width: ${Math.round(f.probability * 100)}%` })), pct(f.probability, 0)),
+    money(f.cost), money(yours(f))] }));
+  rows.push({ cls: "total", cells: ["Expected cost to you", "", money(x.expected_cost), money(x.expected_to_you)] });
+  return card("Inspection risk", "what an inspection may find, and who pays",
+    h("div", { class: "kpis" },
+      tile("Chance of a major finding", pct(x.p_any, 0), "at least one item below", x.p_any >= 0.25 ? "warn" : null),
+      tile("Your share if it does", pct(x.buyer_share, 0), `${x.market}: ${x.basis}`),
+      tile("Expected cost to you", money(x.expected_to_you), `costliest single finding: ${money(x.bad_case)}`)),
+    table(["Finding", "Chance", "Typical cost", "Expected, your share"], rows, { cls: ["wrap"] }),
+    h("p", { class: "note" }, "Added to your cash at purchase (with the estimate allowance), so it lowers the max offer. In a buyer's market the seller usually repairs or credits most of it; as-is and bank-owned sales leave it all with you. Once inspected, tick Already inspected and enter what it found."));
 }
 
 function equityCard(r) {
@@ -903,14 +960,16 @@ function render(r) {
     tr.querySelector("[name=life]").placeholder = c.life;
   }
   renderCompliance(r.compliance);
-  out.replaceChildren(...[verdictCard(r), warningsCard(r.warnings), targetsCard(r.offer), kpiCard(r),
-    compareCard(r.management),
-    h("div", { class: "split" }, financeCard(r), cashCard(r.acquisition)),
-    dpCard(r), holdCard(r),
+  const group = (n, title) => h("h2", { class: "group-h" }, `${n} · ${title}`);
+  out.replaceChildren(...[
+    group(1, "The decision"), verdictCard(r), warningsCard(r.warnings), targetsCard(r.offer),
+    group(2, "Returns"), kpiCard(r), compareCard(r.management), holdCard(r),
     h("div", { class: "split" }, equityCard(r), breakdownCard(r.returns)),
-    h("div", { class: "split" }, proformaCard(r.stabilized, r), stressCard(r.stress)),
-    yearsCard(r.years), h("div", { class: "split" }, saleCard(r.sale), componentsCard(r.components)),
-    assumptionsCard(r.assumptions), marketCard(r.market)].filter(Boolean));
+    group(3, "Loan and cash"), h("div", { class: "split" }, financeCard(r), cashCard(r.acquisition)), dpCard(r),
+    group(4, "Costs and risks"), inspectionCard(r.inspection),
+    h("div", { class: "split" }, proformaCard(r.stabilized, r), stressCard(r.stress)), componentsCard(r.components),
+    group(5, "Details"), yearsCard(r.years), h("div", { class: "split" }, saleCard(r.sale), marketCard(r.market)),
+    assumptionsCard(r.assumptions)].filter(Boolean));
   drawCharts();
 }
 

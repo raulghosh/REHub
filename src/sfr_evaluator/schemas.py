@@ -91,6 +91,11 @@ class Purchase(BaseModel):
     other_costs: float = Field(0, ge=0, description="Survey, HOA transfer, travel, etc.")
     seller_credits: float = Field(0, ge=0)
     known_repairs: list[KnownRepair] = Field(default_factory=list, max_length=50)
+    inspection_done: bool = Field(False, description="Inspected already: enter its findings as known "
+                                  "repairs; no expected surprises are added.")
+    bargaining: Literal["auto", "buyers", "balanced", "sellers", "as_is"] = Field(
+        "auto", description="Who pays for what the inspection finds. auto: as-is for a fixer-upper, "
+                            "else from the zip's days on market.")
 
 
 class Rehab(BaseModel):
@@ -283,6 +288,7 @@ class Acquisition(BaseModel):
     rehab: float
     repairs_at_purchase: float
     compliance_costs: float = 0
+    inspection_risk: float = 0     # expected cost of inspection findings that falls on you
     total_cash_needed: float
     lender_reserves: float  # liquidity lenders expect (6 months PITI), not a cost
 
@@ -408,6 +414,26 @@ class ComplianceRow(BaseModel):
     note: str
 
 
+class InspectionRow(BaseModel):
+    key: str
+    label: str
+    probability: float
+    cost: float
+    note: str
+
+
+class InspectionRisk(BaseModel):
+    done: bool
+    market: str                  # buyer's / balanced / seller's market, or as-is sale
+    basis: str                   # why that market
+    buyer_share: float           # share of the repair cost you typically end up paying
+    p_any: float                 # chance the inspection finds at least one of these
+    expected_cost: float         # sum(probability x cost), whoever pays
+    expected_to_you: float       # x your share; 0 once inspected
+    bad_case: float              # the costliest single finding, your share
+    rows: list[InspectionRow]
+
+
 class Scenario(BaseModel):
     name: str
     monthly_cash_flow: float
@@ -446,6 +472,7 @@ class Result(BaseModel):
     exit_timeline: list[ExitYear]
     components: list[ComponentRow]
     compliance: list[ComplianceRow]
+    inspection: InspectionRisk
     acquisition: Acquisition
     stabilized: YearRow
     years: list[YearRow]
