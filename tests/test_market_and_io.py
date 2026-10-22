@@ -83,6 +83,8 @@ def test_web_api(server):
     with urllib.request.urlopen(server + "/") as r:
         assert b"Deal Evaluator" in r.read()
         assert "connect-src 'self'" in r.headers["Content-Security-Policy"]
+    with urllib.request.urlopen(server + "/guide") as r:
+        assert b'id="cash-on-cash"' in r.read()
     with urllib.request.urlopen(server + "/api/defaults") as r:
         defaults = json.loads(r.read())
     status, result = post(server + "/api/evaluate", json.dumps(defaults["deal"]).encode())

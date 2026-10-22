@@ -10,7 +10,9 @@ pip install -e .
 sfr-eval serve                # open http://127.0.0.1:8000
 ```
 
-The page recalculates as you type and remembers your last deal in the browser. **Ask Claude**
+The page recalculates as you type and remembers your last deal in the browser. New to the
+terms? Every measure has an ⓘ tooltip (definition, formula, rule of thumb), and the
+**Investor guide** (`/guide`) walks one example deal through every number. **Ask Claude**
 opens a chat that runs the model for you, using your own Anthropic API key. The same model runs
 from the command line (`sfr-eval evaluate`, `sfr-eval screen`) and over a small JSON API, and the
 whole app deploys as one Docker container (see [Deploy](#deploy-it-for-other-people)).
