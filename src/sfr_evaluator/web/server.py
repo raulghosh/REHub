@@ -1,9 +1,11 @@
-"""Local web app — `sfr-eval serve`, then open http://127.0.0.1:8000.
+"""Web app — `sfr-eval serve`, then open http://127.0.0.1:8000.
 
-Standard library only:
+Standard library HTTP server, stateless (each browser keeps its own deals), safe to host publicly:
     GET  /                the page (index.html)
     GET  /api/defaults    a sample deal plus default rehab inputs, so the page holds no defaults
     POST /api/evaluate    DealInput JSON -> Result JSON (422 + field errors if invalid)
+    POST /api/chat        {model, messages, question, deal} + the user's own key in the
+                          X-Anthropic-Key header -> {messages, reply, steps, deal, model}
 """
 
 from __future__ import annotations
@@ -15,14 +17,27 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+import anthropic
 from pydantic import ValidationError
 
 from ..analysis import evaluate
 from ..schemas import DealInput, Rehab
 from ..underwrite import rates
+from . import assistant
 
 INDEX = Path(__file__).with_name("index.html")
-MAX_BODY = 256 * 1024
+MAX_BODY = {"/api/evaluate": 256 * 1024, "/api/chat": 8 * 1024 * 1024}
+# the page is self-contained; connect-src 'self' also keeps a stored key from leaving for anywhere else
+CSP = ("default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; "
+       "connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+API_ERRORS = (   # most specific first; messages never contain the key
+    (anthropic.AuthenticationError, 401, "Anthropic rejected this API key."),
+    (anthropic.PermissionDeniedError, 403, "This API key can't use that model."),
+    (anthropic.RateLimitError, 429, "Rate limited by Anthropic. Wait a moment and try again."),
+    (anthropic.BadRequestError, 400, None),
+    (anthropic.APIStatusError, 502, None),
+    (anthropic.APIConnectionError, 502, "Couldn't reach Anthropic. Try again."),
+)
 SAMPLE = DealInput.model_validate({
     "property": {"zip_code": "38118", "year_built": 1978, "sqft": 1350,
                  "units": [{"beds": 3, "baths": 1.5, "rent": 1395}]},
@@ -36,11 +51,15 @@ DEFAULTS = json.dumps({
 
 
 class Handler(BaseHTTPRequestHandler):
+    timeout = 60   # drop idle or stalled client connections
+
     def _send(self, code: int, body: bytes, ctype: str = "application/json") -> None:
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", CSP)
+        self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         self.wfile.write(body)
 
@@ -56,24 +75,51 @@ class Handler(BaseHTTPRequestHandler):
         self._json(404, {"error": "not found"})
 
     def do_POST(self) -> None:
-        if urlparse(self.path).path != "/api/evaluate":
+        path = urlparse(self.path).path
+        if path not in MAX_BODY:
             return self._json(404, {"error": "not found"})
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             length = -1
-        if not 0 < length <= MAX_BODY:
-            return self._json(413 if length > MAX_BODY else 400, {"error": "bad request body"})
+        if not 0 < length <= MAX_BODY[path]:
+            return self._json(413 if length > MAX_BODY[path] else 400, {"error": "bad request body"})
+        body = self.rfile.read(length)
         try:
-            deal = DealInput.model_validate_json(self.rfile.read(length))
-        except ValidationError as e:
-            errors = [{"loc": ".".join(map(str, err["loc"])), "msg": err["msg"]} for err in e.errors()]
-            return self._json(422, {"errors": errors})
-        try:
-            self._send(200, evaluate(deal).model_dump_json().encode())
+            if path == "/api/evaluate":
+                return self._evaluate(body)
+            return self._chat(body)
         except Exception:   # noqa: BLE001 — report instead of dropping the connection
             traceback.print_exc()
             self._json(500, {"error": "the model could not evaluate this deal"})
+
+    def _evaluate(self, body: bytes) -> None:
+        try:
+            deal = DealInput.model_validate_json(body)
+        except ValidationError as e:
+            errors = [{"loc": ".".join(map(str, err["loc"])), "msg": err["msg"]} for err in e.errors()]
+            return self._json(422, {"errors": errors})
+        self._send(200, evaluate(deal).model_dump_json().encode())
+
+    def _chat(self, body: bytes) -> None:
+        key = (self.headers.get("X-Anthropic-Key") or "").strip()
+        if not key:
+            return self._json(401, {"error": "Add your Anthropic API key first."})
+        try:
+            req = json.loads(body)
+            ok = (req["model"] in assistant.MODELS and isinstance(req["messages"], list)
+                  and isinstance(req["deal"], dict) and isinstance(req["question"], str)
+                  and 0 < len(req["question"].strip()) <= 20_000)
+        except (ValueError, KeyError, TypeError):
+            ok = False
+        if not ok:
+            return self._json(400, {"error": "bad chat request"})
+        try:
+            out = assistant.chat(key, req["model"], req["messages"], req["question"].strip(), req["deal"])
+        except anthropic.APIError as e:
+            code, msg = next(((c, m) for cls, c, m in API_ERRORS if isinstance(e, cls)), (502, None))
+            return self._json(code, {"error": msg or f"Anthropic: {e.message}"})
+        self._json(200, out)
 
     def log_message(self, fmt: str, *args: object) -> None:
         pass
@@ -82,6 +128,7 @@ class Handler(BaseHTTPRequestHandler):
 def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
     rates.LIVE = True   # refresh the weekly market rate when online; falls back to the snapshot
     httpd = ThreadingHTTPServer((host, port), Handler)
+    httpd.daemon_threads = True
     print(f"Deal evaluator running on http://{host}:{port}  (Ctrl+C to stop)", file=sys.stderr)
     try:
         httpd.serve_forever()

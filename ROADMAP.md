@@ -28,6 +28,13 @@ divided by equity, and rent was backed out of the price it was then judged again
 - Roof sized by footprint, pitch and material; known-age component schedule.
 - Regulatory checklist; HOA dues history, reserves and special assessments; flood insurance.
 
+## Done (v0.3)
+
+- Hostable: one Docker container, `PORT`/`HOST` from the environment, security headers, no
+  server-side state.
+- Ask Claude: chat with the user's own Anthropic key; Claude runs the model as a tool for
+  what-ifs and fills in the form from a pasted listing.
+
 ## Next
 
 - Run the data build with Census access to bundle rent-by-bedroom, tax-rate and vacancy
@@ -39,3 +46,4 @@ divided by equity, and rent was backed out of the price it was then judged again
 - Section 121 exclusion when a house hack is sold within 3 years of moving out.
 - Regional rebuild-cost factors so upkeep and insurance defaults track local labor costs.
 - Save and compare multiple deals side by side; export a one-page PDF memo.
+- Stream the assistant's answer as it's written; let it compare saved deals.

@@ -144,8 +144,23 @@ table.data td.wrap { white-space: normal; }
 .tip .r .key { width: 10px; height: 2px; }
 .bar:hover, .bar:focus { opacity: .82; outline: none; }
 
+.chat { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 10; display: flex; flex-direction: column; background: var(--card); border-left: 1px solid var(--border); box-shadow: -8px 0 28px rgba(0,0,0,.14); }
+.chat-head { display: flex; gap: 8px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.chat-head h2 { font-size: 15px; margin-right: auto; }
+.chat .key { border-bottom: 1px solid var(--border); }
+.chat .key > summary { cursor: pointer; padding: 9px 14px; font-size: 13px; color: var(--ink-2); }
+.chat .key > div { padding: 0 14px 12px; display: grid; gap: 10px; }
+.chat-log { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.msg { white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px 11px; border-radius: 10px; max-width: 94%; }
+.msg.user { align-self: flex-end; background: color-mix(in srgb, var(--s1) 14%, var(--card)); }
+.msg.bot { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); }
+.msg.step { align-self: flex-start; padding: 0 4px; font-size: 12px; color: var(--muted); }
+.msg.error { border-color: var(--crit); }
+.chat-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; padding: 10px 14px 14px; border-top: 1px solid var(--border); }
+textarea { width: 100%; font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px; resize: vertical; }
+
 @media print {
-  .inputs, .top-actions { display: none; }
+  .inputs, .top-actions, .chat { display: none; }
   .layout { grid-template-columns: 1fr; }
   .card { break-inside: avoid; }
   body { background: #fff; }
@@ -159,6 +174,7 @@ table.data td.wrap { white-space: normal; }
     <p>Buy-and-hold rentals for individual investors: houses, condos, small multifamily and fixer-uppers.</p>
   </div>
   <div class="top-actions">
+    <button type="button" id="chatOpen">Ask Claude</button>
     <button type="button" id="reset">Reset to sample</button>
     <button type="button" id="print">Print</button>
   </div>
@@ -427,6 +443,32 @@ table.data td.wrap { white-space: normal; }
 </section>
 </main>
 
+<aside id="chat" class="chat" aria-label="Ask Claude" hidden>
+  <div class="chat-head">
+    <h2>Ask Claude</h2>
+    <button type="button" id="chatNew">New chat</button>
+    <button type="button" id="chatClose" aria-label="Close">&#x2715;</button>
+  </div>
+  <details id="keyBox" class="key">
+    <summary>API key and model</summary>
+    <div>
+      <label class="f"><span>Your Anthropic API key</span><input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-..."></label>
+      <label class="check"><input id="keyRemember" type="checkbox"> Remember it in this browser</label>
+      <label class="f"><span>Model</span><select id="chatModel">
+        <option value="claude-opus-5-5">Claude Opus 5.5 (most capable)</option>
+        <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (half the price)</option>
+        <option value="claude-haiku-5-5">Claude Haiku 5.5 (cheapest)</option>
+      </select></label>
+      <p class="hint">Usage is billed to your key. The key is sent with each question to this server, which passes it to Anthropic and doesn't store or log it. Create one at console.anthropic.com.</p>
+    </div>
+  </details>
+  <div id="chatLog" class="chat-log" aria-live="polite"></div>
+  <form id="chatForm" class="chat-form">
+    <textarea id="chatInput" rows="3" aria-label="Your question" placeholder="Ask about this deal, try a what-if, or paste a listing to fill in the form."></textarea>
+    <button type="submit" id="chatSend">Send</button>
+  </form>
+</aside>
+
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -620,7 +662,7 @@ async function run() {
     res = await fetch("/api/evaluate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(deal) });
     body = await res.json();
   } catch {
-    body = { error: "Can't reach the model. Is `sfr-eval serve` still running?" };
+    body = { error: "Can't reach the server. Check your connection and try again." };
   }
   if (mine !== seq) return;
   out.classList.remove("loading");
@@ -1022,11 +1064,64 @@ $("#addRepair").addEventListener("click", () => { $("#repairs tbody").append(rep
 $("#reset").addEventListener("click", () => { try { localStorage.removeItem(STORE); } catch { /* ignore */ } fill(DEFAULTS.deal); run(); });
 $("#print").addEventListener("click", () => window.print());
 
+// ---------- assistant ----------
+const KEY = "deal-evaluator:key", MODEL = "deal-evaluator:model";
+let chat = [];   // the conversation in Anthropic's format, as the server returns it
+const hello = () => h("p", { class: "hint" }, "Claude runs this page's model to answer: what's the max offer at 8% cash-on-cash, should I sell in year 5 or keep it, what if I put 10% down. Paste a listing and it fills in the form.");
+const say = (cls, text) => { const el = h("div", { class: `msg ${cls}` }, text); $("#chatLog").append(el); el.scrollIntoView({ block: "end" }); return el; };
+const store = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* private mode */ } };
+function saveKey() { store(KEY, $("#keyRemember").checked ? $("#apiKey").value.trim() : null); }
+async function ask() {
+  const q = $("#chatInput").value.trim(), key = $("#apiKey").value.trim();
+  if (!q || $("#chatSend").disabled) return;
+  if (!key) { $("#keyBox").open = true; $("#apiKey").focus(); return; }
+  saveKey();
+  say("user", q);
+  $("#chatInput").value = "";
+  $("#chatSend").disabled = true;
+  const wait = say("step", "Working on it…");
+  let res = null, body = null;
+  try {
+    res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json", "X-Anthropic-Key": key },
+      body: JSON.stringify({ model: $("#chatModel").value, messages: chat, question: q, deal: collect() }) });
+    body = await res.json();
+  } catch { body = { error: "Can't reach the server. Try again." }; }
+  wait.remove();
+  $("#chatSend").disabled = false;
+  if (!res || !res.ok) {
+    say("bot error", body.error || "Something went wrong.");
+    if (res && res.status === 401) $("#keyBox").open = true;
+    return;
+  }
+  chat = body.messages;
+  for (const st of body.steps) {
+    const what = JSON.stringify(st.changes || {});
+    say("step", `${st.tool === "update_form" ? "Changed your inputs" : "What-if"} ${what.length > 140 ? what.slice(0, 140) + "…" : what} → ${st.summary}`);
+  }
+  say("bot", body.reply || "(no answer)");
+  if (body.deal) { fill(body.deal); run(); }
+}
+$("#chatOpen").addEventListener("click", () => { $("#chat").hidden = false; $("#chatInput").focus(); });
+$("#chatClose").addEventListener("click", () => { $("#chat").hidden = true; });
+$("#chatNew").addEventListener("click", () => { chat = []; $("#chatLog").replaceChildren(hello()); });
+$("#chatForm").addEventListener("submit", e => { e.preventDefault(); ask(); });
+$("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } });
+$("#keyRemember").addEventListener("change", saveKey);
+$("#apiKey").addEventListener("change", saveKey);
+$("#chatModel").addEventListener("change", () => store(MODEL, $("#chatModel").value));
+try {
+  const k = localStorage.getItem(KEY), m = localStorage.getItem(MODEL);
+  if (k) { $("#apiKey").value = k; $("#keyRemember").checked = true; }
+  if (m && $(`#chatModel option[value="${m}"]`)) $("#chatModel").value = m;
+} catch { /* private mode */ }
+$("#keyBox").open = !$("#apiKey").value;
+$("#chatLog").replaceChildren(hello());
+
 (async function init() {
   try {
     DEFAULTS = await (await fetch("/api/defaults")).json();
   } catch {
-    out.replaceChildren(h("div", { class: "card errors" }, h("h2", null, "Can't reach the model"), h("p", null, "Start it with `sfr-eval serve` and reload this page.")));
+    out.replaceChildren(h("div", { class: "card errors" }, h("h2", null, "Can't reach the server"), h("p", null, "Reload the page. Running it yourself? Start it with `sfr-eval serve`.")));
     return;
   }
   let saved = null;

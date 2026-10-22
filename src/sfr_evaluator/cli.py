@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -31,8 +32,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
 
     serve = sub.add_parser("serve", help="Run the web app.")
-    serve.add_argument("--host", default="127.0.0.1")
-    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"),
+                       help="0.0.0.0 to accept outside connections (env HOST).")
+    serve.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")),
+                       help="Env PORT, as hosting platforms set it.")
 
     ev = sub.add_parser("evaluate", help="Evaluate one deal from a YAML or JSON file.")
     ev.add_argument("deal")

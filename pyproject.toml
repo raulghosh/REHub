@@ -9,6 +9,7 @@ description = "Rental deal evaluator for individual investors: houses, condos, s
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "anthropic>=2.1",
     "pydantic>=2",
     "pyyaml>=6",
 ]

@@ -70,8 +70,8 @@ def server():
     httpd.shutdown()
 
 
-def post(url, body: bytes):
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+def post(url, body: bytes, **headers):
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", **headers})
     try:
         with urllib.request.urlopen(req) as r:
             return r.status, json.loads(r.read())
@@ -82,6 +82,7 @@ def post(url, body: bytes):
 def test_web_api(server):
     with urllib.request.urlopen(server + "/") as r:
         assert b"Deal Evaluator" in r.read()
+        assert "connect-src 'self'" in r.headers["Content-Security-Policy"]
     with urllib.request.urlopen(server + "/api/defaults") as r:
         defaults = json.loads(r.read())
     status, result = post(server + "/api/evaluate", json.dumps(defaults["deal"]).encode())
@@ -91,3 +92,7 @@ def test_web_api(server):
     assert status == 422 and any(e["loc"] == "property.zip_code" for e in body["errors"])
     status, _ = post(server + "/api/evaluate", b"x" * 300_000)
     assert status == 413
+    chat = json.dumps({"model": "claude-opus-5-5", "messages": [], "question": "hi", "deal": {}}).encode()
+    assert post(server + "/api/chat", chat)[0] == 401                       # no key
+    bad = chat.replace(b"claude-opus-5-5", b"gpt-4")
+    assert post(server + "/api/chat", bad, **{"X-Anthropic-Key": "k"})[0] == 400

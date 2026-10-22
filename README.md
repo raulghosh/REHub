@@ -10,8 +10,10 @@ pip install -e .
 sfr-eval serve                # open http://127.0.0.1:8000
 ```
 
-The page recalculates as you type and remembers your last deal in the browser. The same model
-runs from the command line (`sfr-eval evaluate`, `sfr-eval screen`) and over a small JSON API.
+The page recalculates as you type and remembers your last deal in the browser. **Ask Claude**
+opens a chat that runs the model for you, using your own Anthropic API key. The same model runs
+from the command line (`sfr-eval evaluate`, `sfr-eval screen`) and over a small JSON API, and the
+whole app deploys as one Docker container (see [Deploy](#deploy-it-for-other-people)).
 
 ## What it models that most calculators skip
 
@@ -49,6 +51,26 @@ runs from the command line (`sfr-eval evaluate`, `sfr-eval screen`) and over a s
   table; the sell-or-keep table to loan payoff; the component replacement schedule
 - Every derived assumption with its source, and plain-language warnings
 
+## Ask Claude (bring your own key)
+
+**Ask Claude** opens a chat beside the results. Paste an Anthropic API key (from
+console.anthropic.com) and ask things like:
+
+- "What's the most I can pay and still get 8% cash-on-cash?"
+- "Should I sell in year 7 or keep it until the loan is paid off?"
+- "What if I hire a property manager and put 10% down?"
+- Or paste a listing, and Claude fills in the form.
+
+Claude doesn't do the math: it runs this model as a tool and quotes its results. What-ifs leave
+your form alone; it changes your inputs only when you ask, and every run it made is listed in the
+chat. Pick Claude Opus 5.5 (default), Sonnet 5.5 or Haiku 5.5. Usage is billed to your key. On
+Opus and Sonnet, a question Anthropic's safety filters wrongly decline is retried on a fallback
+model automatically (`fallbacks: "default"`).
+
+Your key goes with each question to the server, which uses it for that request only and never
+stores or logs it. "Remember it" keeps it in your browser. The page's security policy only lets
+it talk to its own server.
+
 ## Command line
 
 ```bash
@@ -62,7 +84,32 @@ your tax situation and targets come from `config/investor_profile.yaml`. Rent is
 the model never backs rent out of the price.
 
 API: `GET /api/defaults` returns a sample deal; `POST /api/evaluate` takes the `DealInput`
-JSON from `schemas.py` and returns the full `Result` (422 with field errors if invalid).
+JSON from `schemas.py` and returns the full `Result` (422 with field errors if invalid);
+`POST /api/chat` is the assistant (key in the `X-Anthropic-Key` header).
+
+## Deploy it for other people
+
+The server keeps no state. Each visitor's deals stay in their own browser, and the assistant
+runs on each visitor's own key. There are no accounts or database to run.
+
+```bash
+docker build -t deal-evaluator .
+docker run -p 8000:8000 deal-evaluator          # http://localhost:8000
+```
+
+Any host that runs a Dockerfile works:
+
+- **Render:** New → Web Service → this repo. It finds the Dockerfile and sets `PORT`.
+- **Railway** and **Google Cloud Run** work the same way.
+- **Fly.io:** run `fly launch`.
+
+Serve it over **HTTPS only**, because visitors' API keys pass through it. All of these hosts do
+that by default. Without Docker: `pip install . && sfr-eval serve --host 0.0.0.0`, with the port
+from `$PORT` (default 8000).
+
+Anyone with the URL can run the evaluator. Each evaluation is a fraction of a second of CPU, and
+the assistant only spends the visitor's own key. There is no built-in rate limit. If the link
+will be public and busy, use your host's limits or put Cloudflare in front of it.
 
 ## Data
 
@@ -120,7 +167,7 @@ src/sfr_evaluator/
 ├── metrics/returns.py    # IRR, metrics, profit breakdown, max offer, sell-or-keep, down payments
 ├── risk/sensitivity.py   # stress tests, self vs. PM comparison
 ├── ingest/               # listing CSV -> deals, address dedup (for `screen`)
-├── web/                  # stdlib HTTP server + single-page front end
+├── web/                  # stdlib HTTP server, single-page front end, Claude assistant
 └── data/                 # bundled zip-code market table
 ```
 
