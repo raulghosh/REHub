@@ -20,8 +20,9 @@ opens a chat that runs the model for you, using your own Anthropic API key. The 
 from the command line (`sfr-eval evaluate`, `sfr-eval screen`) and over a small JSON API, and the
 whole app deploys as one Docker container (see [Deploy](#deploy-it-for-other-people)).
 
-Looking for the institutional screening funnel (triage hundreds of listings, ranked queue
-and memos)? It moved to [SFRScreeningPipeline](https://github.com/raulghosh/SFRScreeningPipeline).
+This is the first module of **REHub**, a hub of real-estate tools. The earlier institutional
+screening funnel (triage hundreds of listings into a ranked queue) is in this repo's history
+(commit 936590a) and returns as a REHub screener module.
 
 ## What it models that most calculators skip
 

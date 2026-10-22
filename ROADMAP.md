@@ -3,8 +3,8 @@
 ## Done (v0.1)
 
 The project pivoted from an institutional SFR screening funnel to a deal evaluator for
-individual investors. The funnel now lives in its own repo,
-[SFRScreeningPipeline](https://github.com/raulghosh/SFRScreeningPipeline). The old engine's bugs went with it (the sale ignored the loan payoff,
+individual investors. The funnel stays in this repo's history
+and returns as the REHub screener module. The old engine's bugs went with it (the sale ignored the loan payoff,
 cash flows never grew, overdue components reserved 10x their cost, yield-on-cost was
 divided by equity, and rent was backed out of the price it was then judged against).
 
