@@ -1,6 +1,8 @@
-property_id,address,city,state,zip_code,beds,baths,sqft,list_price,asset_type,roof_age,hvac_age,water_heater_age
-sfr-001,123 Main St,Austin,TX,78704,3,2,1600,350000,single_family,8,5,4
-sfr-002,456 Oak Ave,Austin,TX,78705,2,1,1200,250000,single_family,15,10,8
-sfr-003,789 Pine Rd,Austin,TX,78701,4,3,2000,425000,single_family,5,3,2
-sfr-004,321 Elm St,Austin,TX,78702,3,2,1550,280000,townhouse,12,7,6
-sfr-005,654 Maple Ln,Austin,TX,78703,2,1,1100,220000,single_family,20,15,12
+address,zip_code,property_type,year_built,sqft,beds,baths,units,rent,price,hoa_monthly
+4211 Sample Ave,38118,single_family,1978,1350,3,1.5,1,1395,105000,0
+4211 Sample Avenue,38118,single_family,1978,1350,3,1.5,1,1395,99500,0
+1730 Example St,46203,single_family,1958,1300,3,1,1,1550,140000,0
+920 Demo Rd,43207,single_family,1965,1250,3,1,1,1550,150000,0
+55 Placeholder Ln,44109,multi_2_4,1925,2200,2,1,2,2200,150000,0
+310 Mock Blvd,78745,single_family,1984,1450,3,2,1,2150,410000,0
+12 Test Ct,33317,condo,1985,900,2,2,1,2100,180000,450

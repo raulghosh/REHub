@@ -1,70 +1,71 @@
-"""Debt sizing, amortization and DSCR.
-
-Loan is constrained by the *lesser* of LTV and a DSCR floor — committees size to whichever
-binds. DSCR is also tested at a stressed rate (rate + stress_rate_bps).
-"""
+"""Fixed-rate mortgage schedule with PMI and an optional mid-hold refinance (BRRRR)."""
 
 from __future__ import annotations
 
-from decimal import Decimal
-
-from ..schemas import Assumptions
+from dataclasses import dataclass
 
 
-def size_loan(purchase_price: Decimal, noi: Decimal, assumptions: Assumptions) -> Decimal:
-    """Loan amount = min(LTV-constrained, DSCR-constrained).
-
-    LTV constraint: loan <= purchase_price * ltv.
-    DSCR constraint: solve for max loan such that NOI / debt_service >= min_dscr.
-    """
-    ltv_loan = purchase_price * Decimal(assumptions.ltv)
-
-    # DSCR-constrained: find max loan such that NOI / debt_service >= min_dscr
-    # Use bisection to find the loan amount.
-    max_debt_service = noi / Decimal(assumptions.min_dscr)
-
-    # Binary search: find the largest loan such that annual_debt_service <= max_debt_service
-    low = Decimal(0)
-    high = ltv_loan
-    dscr_loan = Decimal(0)
-
-    for _ in range(100):  # ~27 bits of precision
-        mid = (low + high) / 2
-        debt = annual_debt_service(mid, assumptions.interest_rate, assumptions.amort_years)
-        if debt <= max_debt_service:
-            dscr_loan = mid
-            low = mid
-        else:
-            high = mid
-
-    return min(ltv_loan, dscr_loan)
+def monthly_payment(principal: float, annual_rate: float, years: int) -> float:
+    n = years * 12
+    if principal <= 0:
+        return 0.0
+    if annual_rate == 0:
+        return principal / n
+    r = annual_rate / 12
+    return principal * r / (1 - (1 + r) ** -n)
 
 
-def annual_debt_service(loan: Decimal, rate: float, amort_years: int) -> Decimal:
-    """Annual debt service for a fully-amortizing fixed-rate loan.
-
-    Payment = loan * (r * (1 + r)^n) / ((1 + r)^n - 1)
-    where r = rate / 12 (monthly), n = amort_years * 12.
-    """
-    if rate == 0:
-        return loan / Decimal(amort_years)
-
-    r_monthly = Decimal(rate) / 12
-    n = amort_years * 12
-
-    # (1 + r)^n
-    compound = (1 + r_monthly) ** n
-
-    # numerator = r * (1 + r)^n
-    # denominator = (1 + r)^n - 1
-    monthly_payment = loan * (r_monthly * compound) / (compound - 1)
-
-    # Annual
-    return monthly_payment * 12
+@dataclass
+class Refi:
+    month: int                # 1-based month of the hold in which it closes
+    amount: float | None      # None: roll the remaining balance (rate-and-term, e.g. a balloon)
+    rate: float
+    term_years: int
+    cost_pct: float
 
 
-def dscr(noi: Decimal, debt_service: Decimal) -> float:
-    """Debt Service Coverage Ratio = NOI / annual debt service."""
-    if debt_service == 0:
-        return float('inf') if noi > 0 else 1.0
-    return float(noi / debt_service)
+@dataclass
+class DebtYear:
+    interest: float = 0.0
+    principal: float = 0.0
+    pmi: float = 0.0              # PMI or FHA MIP
+    balance: float = 0.0          # end of year
+    refi_cash_out: float = 0.0    # new loan - payoff - costs (negative = cash in)
+    refi_costs: float = 0.0
+
+
+def schedule(amount: float, rate: float, term_years: int, years: int,
+             mi_rate: float = 0.0, mi_stop_balance: float = 0.0, refis: tuple[Refi, ...] = (),
+             mi_on_balance: bool = False, mi_months: int | None = None) -> list[DebtYear]:
+    """Monthly amortization rolled up by year. Conventional PMI is a % of the original loan,
+    charged while the balance is above `mi_stop_balance` (78% of original value); FHA MIP is
+    a % of the current balance for `mi_months`. A refinance ends mortgage insurance."""
+    out = [DebtYear() for _ in range(years)]
+    by_month = {f.month: f for f in refis}
+    bal, r = amount, rate / 12
+    pmt, left = monthly_payment(amount, rate, term_years), term_years * 12
+    for m in range(1, years * 12 + 1):
+        y = out[(m - 1) // 12]
+        f = by_month.get(m)
+        if f is not None:
+            new = bal if f.amount is None else f.amount
+            costs = f.cost_pct * new
+            y.refi_cash_out += new - bal - costs
+            y.refi_costs += costs
+            bal, r = new, f.rate / 12
+            pmt, left = monthly_payment(new, f.rate, f.term_years), f.term_years * 12
+            mi_rate = 0.0   # ponytail: refinances assumed at <= 80% LTV
+        if bal > 0.005 and left > 0:
+            if mi_on_balance:
+                if mi_months is None or m <= mi_months:
+                    y.pmi += mi_rate * bal / 12
+            elif bal > mi_stop_balance:
+                y.pmi += mi_rate * amount / 12
+            interest = bal * r
+            princ = min(pmt - interest, bal)
+            bal -= princ
+            left -= 1
+            y.interest += interest
+            y.principal += princ
+        y.balance = bal
+    return out
