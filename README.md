@@ -15,6 +15,9 @@ opens a chat that runs the model for you, using your own Anthropic API key. The 
 from the command line (`sfr-eval evaluate`, `sfr-eval screen`) and over a small JSON API, and the
 whole app deploys as one Docker container (see [Deploy](#deploy-it-for-other-people)).
 
+Looking for the institutional screening funnel (triage hundreds of listings, ranked queue
+and memos)? It moved to [SFRScreeningPipeline](https://github.com/raulghosh/SFRScreeningPipeline).
+
 ## What it models that most calculators skip
 
 | Detail | How the model handles it |
