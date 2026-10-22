@@ -23,9 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      ANTHROPIC_FEDERATION_RULE_ID: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
-      ANTHROPIC_ORGANIZATION_ID: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
-      ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+      ANTHROPIC_FEDERATION_RULE_ID: "fdrl_015xTETmyGUDUEDGnK4EHGGw"
+      ANTHROPIC_ORGANIZATION_ID: "4d8a2e2b-c298-4c2a-9d35-0c6a64913b27"
+      ANTHROPIC_SERVICE_ACCOUNT_ID: "svac_01B2sqJRCHSpc9ct2B42zqN8"
+      ANTHROPIC_WORKSPACE_ID: "wrkspc_01RSznVYbZS21z4ekGzcUK9K"
       ANTHROPIC_IDENTITY_TOKEN_FILE: /tmp/gha-jwt
     steps:
       - name: Check the federation settings
