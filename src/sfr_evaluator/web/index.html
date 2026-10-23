@@ -1379,7 +1379,10 @@ function grabListing(app) {
     .map(m => m.content).join("\n") + "\n" + document.title;
   const top = meta + "\n" + text.slice(0, 30000);
   const num = v => { const n = parseFloat(String(v ?? "").replace(/[^\d.]/g, "")); return isFinite(n) && n > 0 ? n : null; };
-  const find = re => { const m = top.match(re); return m ? m[1] : null; };
+  const find = (re, src = top) => { const m = src.match(re); return m ? m[1] : null; };
+  // price, beds, size: near the top (further down are "similar homes"); rent and HOA have specific
+  // labels but sit deep in long listings (Zillow's "Estimated market value"), so they search it all
+  const all = meta + "\n" + text;
   const ld = {};
   const walk = o => {
     if (Array.isArray(o)) return o.forEach(walk);
@@ -1413,8 +1416,13 @@ function grabListing(app) {
   const rentData = num((data.match(/\\?"rentZestimate\\?"\s*:\s*(\d{3,6})/) || [])[1]);
   // the label and the amount may sit on separate lines ("HOA Dues" / "$165/mo"); $0 is a real answer
   const hoaData = (data.match(/\\?"monthlyHoaFee\\?"\s*:\s*(\d+(?:\.\d+)?)/) || [])[1];
-  const hoa = hoaData ?? find(/\bhoa\b(?:[ \t]*(?:fees?|dues))?[^\n$\d]{0,15}\n?[^\n$\d]{0,5}\$[ \t]?([\d,]+)/i)
-    ?? find(/\$[ \t]?([\d,]+)[ \t]*(?:\/[ \t]*mo|monthly|per month)?[ \t]*\bhoa\b/i);
+  // HOA dues are often quoted per year or quarter ("HOA fee: $5,400 annually"): convert to monthly
+  const PER = "(annually|annual|yearly|per year|a year|/ ?yr|/ ?year|quarterly|per quarter|/ ?qtr|semi-?annually|monthly|per month|/ ?mo)?";
+  const months = w => /semi/i.test(w || "") ? 6 : /ann|year|yr/i.test(w || "") ? 12 : /quart|qtr/i.test(w || "") ? 3 : 1;
+  const hoaText = all.match(new RegExp("\\bhoa\\b(?:[ \\t]*(?:fees?|dues))?[^\\n$\\d]{0,15}\\n?[^\\n$\\d]{0,5}\\$[ \\t]?([\\d,]+)[ \\t]*" + PER, "i"))
+    || all.match(new RegExp("\\$[ \\t]?([\\d,]+)[ \\t]*" + PER + "[ \\t]*\\bhoa\\b", "i"));
+  const hoa = hoaData != null ? parseFloat(hoaData)
+    : hoaText ? Math.round(parseFloat(hoaText[1].replace(/,/g, "")) / months(hoaText[2])) : null;
   const units = /\bduplex\b/.test(words) ? 2 : /\btriplex\b/.test(words) ? 3 : /\b(fourplex|quadplex|4-plex)\b/.test(words) ? 4 : 1;
   const d = {
     source: location.hostname.replace(/^www\./, ""), url: location.href,
@@ -1424,16 +1432,16 @@ function grabListing(app) {
     year: num(ld.year) || num(find(/(?:built in|year built)\s*:?\s*(\d{4})/i)),
     zip: ld.zip || find(/\b[A-Z]{2},?\s+(\d{5})(?:-\d{4})?\b/),
     address: ld.address || find(/^(\d+ [^\n]{3,80}?,\s*[^\n,]+,\s*[A-Z]{2},?\s+\d{5})/m),
-    hoa: hoa != null ? parseFloat(hoa.replace(/,/g, "")) : /\bno hoa\b|\bhoa\b[^\n$\d]{0,20}\b(?:none|no)\b/i.test(top) ? 0 : null,
-    rent: rentData || num(find(/(?:rent(?:al)?\s*(?:zestimate|estimate)|estimated\s+(?:monthly\s+)?rent)[^$\n]{0,20}(?:\n[^$\n]{0,20}){0,2}\$\s?([\d,]+)/i)),
+    hoa: hoa != null ? hoa : /\bno hoa\b|\bhoa\b[^\n$\d]{0,20}\b(?:none|no)\b/i.test(all) ? 0 : null,
+    rent: rentData || num(find(/(?:rent(?:al)?\s*(?:zestimate|estimate)|estimated\s+(?:monthly\s+)?rent)[^$\n]{0,20}(?:\n[^$\n]{0,20}){0,2}\$\s?([\d,]+)/i, all)),
     type: units > 1 ? "multi_2_4" : /\bcondo/.test(words) ? "condo" : /\btownho/.test(words) ? "townhouse" : "single_family",
-    units, v: 2,   // BM_VERSION: bump with every change to this function
+    units, v: 3,   // BM_VERSION: bump with every change to this function
   };
   if (!d.price && !d.zip) return alert("No listing details found on this page. Open a single home's listing, or paste its text into Ask Claude.");
   window.open(app + "/#listing=" + encodeURIComponent(JSON.stringify(d)), "_blank");
 }
 
-const BM_VERSION = 2;
+const BM_VERSION = 3;
 
 function readListing() {
   const m = location.hash.match(/^#listing=(.+)$/);
