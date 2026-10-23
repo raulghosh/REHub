@@ -789,9 +789,10 @@ function verdictCard(r) {
       h("p", { class: "summary" }, o.summary)),
     h("div", { class: "hero" },
       h("div", null, h("div", { class: "label" }, `Max offer (${pct(o.margin_of_safety_pct, 0)} margin of safety)`, info("max-offer")),
-        h("div", { class: "big" }, o.max_offer == null ? "None" : money(o.max_offer))),
+        h("div", { class: "big" }, o.max_offer == null ? "No price works" : money(o.max_offer))),
       h("div", null, h("div", { class: "label" }, "Highest price meeting your targets", info("investment-value")),
-        h("div", { class: "mid" }, o.investment_value == null ? "None" : money(o.investment_value))),
+        h("div", { class: "mid" }, o.investment_value != null ? money(o.investment_value)
+          : o.targets.length ? "No price works" : "No targets set")),
       h("div", null, h("div", { class: "label" }, isRehab ? "After-repair value" : "Market value", info(isRehab ? "arv" : "market-value")),
         h("div", { class: "mid" }, money(o.market_value)))),
     o.max_offer == null ? null : o.price > o.max_offer
@@ -1268,9 +1269,10 @@ function info(term) {
 function showTip(el) {
   clearTimeout(tipTimer);
   const [title, text, formula, rule] = TERMS[el.dataset.term];
-  tipbox.replaceChildren(h("h4", null, title), h("p", null, text),
+  // filter: replaceChildren() would print a missing formula or rule as the word "null"
+  tipbox.replaceChildren(...[h("h4", null, title), h("p", null, text),
     formula ? h("div", { class: "fx" }, formula) : null, rule ? h("p", { class: "rule" }, rule) : null,
-    h("a", { href: `/guide#${el.dataset.term}`, target: "_blank", rel: "noopener" }, "More in the investor guide →"));
+    h("a", { href: `/guide#${el.dataset.term}`, target: "_blank", rel: "noopener" }, "More in the investor guide →")].filter(Boolean));
   if (tipOwner && tipOwner !== el) tipOwner.setAttribute("aria-expanded", "false");
   tipOwner = el;
   el.setAttribute("aria-expanded", "true");
@@ -1407,10 +1409,12 @@ function grabListing(app) {
   const words = (meta + "\n" + text.slice(0, 3000)).toLowerCase();
   // Zillow embeds its Rent Zestimate in the page's data even when that section is closed
   // (the field sits in JSON, sometimes JSON inside a string, hence the optional backslashes)
-  const rentData = num(([...document.scripts].map(el => el.textContent).join("\n")
-    .match(/\\?"rentZestimate\\?"\s*:\s*(\d{3,6})/) || [])[1]);
+  const data = [...document.scripts].map(el => el.textContent).join("\n");
+  const rentData = num((data.match(/\\?"rentZestimate\\?"\s*:\s*(\d{3,6})/) || [])[1]);
   // the label and the amount may sit on separate lines ("HOA Dues" / "$165/mo"); $0 is a real answer
-  const hoa = find(/hoa[^\n$]{0,30}\n?[^\n$]{0,10}\$\s?([\d,]+)/i) ?? find(/\$\s?([\d,]+)\s*(?:\/\s*mo|monthly|per month)?\s*hoa/i);
+  const hoaData = (data.match(/\\?"monthlyHoaFee\\?"\s*:\s*(\d+(?:\.\d+)?)/) || [])[1];
+  const hoa = hoaData ?? find(/\bhoa\b(?:[ \t]*(?:fees?|dues))?[^\n$\d]{0,15}\n?[^\n$\d]{0,5}\$[ \t]?([\d,]+)/i)
+    ?? find(/\$[ \t]?([\d,]+)[ \t]*(?:\/[ \t]*mo|monthly|per month)?[ \t]*\bhoa\b/i);
   const units = /\bduplex\b/.test(words) ? 2 : /\btriplex\b/.test(words) ? 3 : /\b(fourplex|quadplex|4-plex)\b/.test(words) ? 4 : 1;
   const d = {
     source: location.hostname.replace(/^www\./, ""), url: location.href,
@@ -1420,14 +1424,16 @@ function grabListing(app) {
     year: num(ld.year) || num(find(/(?:built in|year built)\s*:?\s*(\d{4})/i)),
     zip: ld.zip || find(/\b[A-Z]{2},?\s+(\d{5})(?:-\d{4})?\b/),
     address: ld.address || find(/^(\d+ [^\n]{3,80}?,\s*[^\n,]+,\s*[A-Z]{2},?\s+\d{5})/m),
-    hoa: /\bno hoa\b|hoa[^\n$]{0,20}\b(?:none|no)\b/i.test(top) ? 0 : hoa == null ? null : parseFloat(hoa.replace(/,/g, "")),
+    hoa: hoa != null ? parseFloat(hoa.replace(/,/g, "")) : /\bno hoa\b|\bhoa\b[^\n$\d]{0,20}\b(?:none|no)\b/i.test(top) ? 0 : null,
     rent: rentData || num(find(/(?:rent(?:al)?\s*(?:zestimate|estimate)|estimated\s+(?:monthly\s+)?rent)[^$\n]{0,20}(?:\n[^$\n]{0,20}){0,2}\$\s?([\d,]+)/i)),
     type: units > 1 ? "multi_2_4" : /\bcondo/.test(words) ? "condo" : /\btownho/.test(words) ? "townhouse" : "single_family",
-    units,
+    units, v: 2,   // BM_VERSION: bump with every change to this function
   };
   if (!d.price && !d.zip) return alert("No listing details found on this page. Open a single home's listing, or paste its text into Ask Claude.");
   window.open(app + "/#listing=" + encodeURIComponent(JSON.stringify(d)), "_blank");
 }
+
+const BM_VERSION = 2;
 
 function readListing() {
   const m = location.hash.match(/^#listing=(.+)$/);
@@ -1446,6 +1452,7 @@ function applyListing(base, x) {
     type: ["single_family", "townhouse", "condo", "multi_2_4"].includes(x.type) ? x.type : "single_family",
     address: typeof x.address === "string" ? x.address.slice(0, 200) : "",
     source: typeof x.source === "string" ? x.source.slice(0, 60) : "the listing",
+    old: x.v !== BM_VERSION,
     url: typeof x.url === "string" && /^https:\/\//.test(x.url) ? x.url : null,
   };
   const d = structuredClone(base), u = L.units;
@@ -1466,14 +1473,16 @@ function showImport(L) {
     L.sqft && `${L.sqft.toLocaleString()} sqft`, L.year && `built ${L.year}`, L.zip && `zip ${L.zip}`,
     L.hoa != null && (L.hoa ? `HOA ${money(L.hoa)}/mo` : "no HOA"), L.rent && `rent estimate ${money(L.rent)}/mo`].filter(Boolean);
   const missing = [!L.price && "price", !L.zip && "zip code", L.beds == null && "beds", L.baths == null && "baths",
-    !L.sqft && "size", !L.year && "year built", !L.rent && "rent"].filter(Boolean);
+    !L.sqft && "size", !L.year && "year built", !L.rent && "rent",
+    L.hoa == null && ["condo", "townhouse"].includes(L.type) && "HOA dues"].filter(Boolean);
   const close = h("button", { type: "button", "aria-label": "Dismiss" }, "×");
   const note = h("p", { class: "start import", role: "status" }, close,
     h("b", null, "Filled in from "), L.url ? h("a", { href: L.url, target: "_blank", rel: "noopener noreferrer" }, L.source) : L.source,
     `: ${got.join(" · ")}. `,
     missing.length ? h("b", null, `Not on the page: ${missing.join(", ")}. Enter ${missing.length > 1 ? "them" : "it"} below. `) : null,
     L.rent ? "The rent is the listing site's estimate: check it against leased comps. " : null,
-    "Your financing, targets and tax settings are kept.");
+    "Your financing, targets and tax settings are kept.",
+    L.old ? h("b", { style: "display: block; margin-top: 6px" }, "Your bookmark is an older copy: open From a listing and drag Evaluate listing to your bookmarks bar again to get the latest fixes.") : null);
   close.addEventListener("click", () => note.remove());
   form.prepend(note);
   if (!L.rent) $$("#units [name=rent]")[0]?.focus();
