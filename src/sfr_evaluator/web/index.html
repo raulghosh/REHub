@@ -1394,6 +1394,10 @@ function grabListing(app) {
     if (!/lot/i.test(top.slice(Math.max(0, m.index - 20), m.index))) sqft = num(m[1]);
   }
   const words = (meta + "\n" + text.slice(0, 3000)).toLowerCase();
+  // Zillow embeds its Rent Zestimate in the page's data even when that section is closed
+  // (the field sits in JSON, sometimes JSON inside a string, hence the optional backslashes)
+  const rentData = num(([...document.scripts].map(el => el.textContent).join("\n")
+    .match(/\\?"rentZestimate\\?"\s*:\s*(\d{3,6})/) || [])[1]);
   // the label and the amount may sit on separate lines ("HOA Dues" / "$165/mo"); $0 is a real answer
   const hoa = find(/hoa[^\n$]{0,30}\n?[^\n$]{0,10}\$\s?([\d,]+)/i) ?? find(/\$\s?([\d,]+)\s*(?:\/\s*mo|monthly|per month)?\s*hoa/i);
   const units = /\bduplex\b/.test(words) ? 2 : /\btriplex\b/.test(words) ? 3 : /\b(fourplex|quadplex|4-plex)\b/.test(words) ? 4 : 1;
@@ -1406,7 +1410,7 @@ function grabListing(app) {
     zip: ld.zip || find(/\b[A-Z]{2},?\s+(\d{5})(?:-\d{4})?\b/),
     address: ld.address || find(/^(\d+ [^\n]{3,80}?,\s*[^\n,]+,\s*[A-Z]{2},?\s+\d{5})/m),
     hoa: /\bno hoa\b|hoa[^\n$]{0,20}\b(?:none|no)\b/i.test(top) ? 0 : hoa == null ? null : parseFloat(hoa.replace(/,/g, "")),
-    rent: num(find(/(?:rent(?:al)?\s*(?:zestimate|estimate)|estimated\s+(?:monthly\s+)?rent)[^$\n]{0,20}\$\s?([\d,]+)/i)),
+    rent: rentData || num(find(/(?:rent(?:al)?\s*(?:zestimate|estimate)|estimated\s+(?:monthly\s+)?rent)[^$\n]{0,20}(?:\n[^$\n]{0,20}){0,2}\$\s?([\d,]+)/i)),
     type: units > 1 ? "multi_2_4" : /\bcondo/.test(words) ? "condo" : /\btownho/.test(words) ? "townhouse" : "single_family",
     units,
   };
