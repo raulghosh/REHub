@@ -518,14 +518,14 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
   <details id="keyBox" class="key">
     <summary>API key and model</summary>
     <div>
-      <label class="f"><span>Your Anthropic API key</span><input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-..."></label>
+      <label class="f"><span id="keyLabel">Your Anthropic API key</span><input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-..."></label>
       <label class="check"><input id="keyRemember" type="checkbox"> Remember it in this browser</label>
       <label class="f"><span>Model</span><select id="chatModel">
         <option value="claude-opus-5-5">Claude Opus 5.5 (most capable)</option>
         <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (half the price)</option>
         <option value="claude-haiku-5-5">Claude Haiku 5.5 (cheapest)</option>
       </select></label>
-      <p class="hint">Usage is billed to your key. The key is sent with each question to this server, which passes it to Anthropic and doesn't store or log it. Create one at console.anthropic.com.</p>
+      <p class="hint"><span id="keyFree"></span>Usage with your key is billed to your key. The key is sent with each question to this server, which passes it to Anthropic and doesn't store or log it. Create one at console.anthropic.com.</p>
     </div>
   </details>
   <div id="chatLog" class="chat-log" aria-live="polite"></div>
@@ -1302,6 +1302,7 @@ for (const label of $$("label[data-term]")) {
 // ---------- assistant ----------
 const KEY = "deal-evaluator:key", MODEL = "deal-evaluator:model";
 let chat = [];   // the conversation in Anthropic's format, as the server returns it
+let HOUSE = false;   // true when the site offers free questions on its own Claude access
 const hello = () => h("p", { class: "hint" }, "Claude runs this page's model to answer: what's the max offer at 8% cash-on-cash, should I sell in year 5 or keep it, what if I put 10% down. Paste a listing and it fills in the form.");
 const say = (cls, text) => { const el = h("div", { class: `msg ${cls}` }, text); $("#chatLog").append(el); el.scrollIntoView({ block: "end" }); return el; };
 const store = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* private mode */ } };
@@ -1309,7 +1310,7 @@ function saveKey() { store(KEY, $("#keyRemember").checked ? $("#apiKey").value.t
 async function ask() {
   const q = $("#chatInput").value.trim(), key = $("#apiKey").value.trim();
   if (!q || $("#chatSend").disabled) return;
-  if (!key) { $("#keyBox").open = true; $("#apiKey").focus(); return; }
+  if (!key && !HOUSE) { $("#keyBox").open = true; $("#apiKey").focus(); return; }
   saveKey();
   say("user", q);
   $("#chatInput").value = "";
@@ -1317,7 +1318,7 @@ async function ask() {
   const wait = say("step", "Working on it…");
   let res = null, body = null;
   try {
-    res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json", "X-Anthropic-Key": key },
+    res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json", ...(key ? { "X-Anthropic-Key": key } : {}) },
       body: JSON.stringify({ model: $("#chatModel").value, messages: chat, question: q, deal: collect() }) });
     body = await res.json();
   } catch { body = { error: "Can't reach the server. Try again." }; }
@@ -1325,7 +1326,7 @@ async function ask() {
   $("#chatSend").disabled = false;
   if (!res || !res.ok) {
     say("bot error", body.error || "Something went wrong.");
-    if (res && res.status === 401) $("#keyBox").open = true;
+    if (res && (res.status === 401 || body.need_key)) { $("#keyBox").open = true; $("#apiKey").focus(); }
     return;
   }
   chat = body.messages;
@@ -1334,6 +1335,7 @@ async function ask() {
     say("step", `${st.tool === "update_form" ? "Changed your inputs" : "What-if"} ${what.length > 140 ? what.slice(0, 140) + "…" : what} → ${st.summary}`);
   }
   say("bot", body.reply || "(no answer)");
+  if (body.free_left != null) say("step", `Free questions left today: ${body.free_left}. Add your own key for more.`);
   if (body.deal) { fill(body.deal); run(); }
 }
 $("#chatOpen").addEventListener("click", () => { $("#chat").hidden = false; $("#chatInput").focus(); });
@@ -1469,6 +1471,13 @@ $("#bmOpen").addEventListener("click", () => $("#bmDialog").showModal());
 (async function init() {
   try {
     DEFAULTS = await (await fetch("/api/defaults")).json();
+    const a = DEFAULTS.assistant || {};
+    HOUSE = !!a.house;
+    if (HOUSE) {   // free questions: the key becomes optional
+      $("#keyLabel").textContent = "Your own Anthropic API key (optional)";
+      $("#keyFree").textContent = `This site answers ${a.free_questions} questions a day for free. Add a key to ask more. `;
+      $("#keyBox").open = false;
+    }
   } catch {
     out.replaceChildren(h("div", { class: "card errors" }, h("h2", null, "Can't reach the server"), h("p", null, "Reload the page. Running it yourself? Start it with `sfr-eval serve`.")));
     return;

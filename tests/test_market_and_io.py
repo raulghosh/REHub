@@ -98,3 +98,20 @@ def test_web_api(server):
     assert post(server + "/api/chat", chat)[0] == 401                       # no key
     bad = chat.replace(b"claude-opus-5-5", b"gpt-4")
     assert post(server + "/api/chat", bad, **{"X-Anthropic-Key": "k"})[0] == 400
+
+
+def test_free_questions_on_the_sites_own_access(server, monkeypatch):
+    from sfr_evaluator.web import assistant
+    from tests.test_assistant import FakeClient, message
+    house = FakeClient()
+    monkeypatch.setattr(assistant, "house_client", lambda: house)
+    monkeypatch.setattr(assistant, "ALLOWANCE", assistant.Allowance())
+    monkeypatch.setenv("REHUB_FREE_QUESTIONS_PER_DAY", "1")
+    chat = json.dumps({"model": "claude-opus-5-5", "messages": [], "question": "hi",
+                       "deal": SAMPLE.model_dump(mode="json")}).encode()
+    house.script.append(message("end_turn", {"type": "text", "text": "Hello"}))
+    status, body = post(server + "/api/chat", chat)                          # no key: the house pays
+    assert status == 200 and body["reply"] == "Hello" and body["free_left"] == 0 and "cost" not in body
+    status, body = post(server + "/api/chat", chat)
+    assert status == 429 and body["need_key"]                                # out of free questions
+    assert not house.script and len(house.calls) == 1

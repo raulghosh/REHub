@@ -1,13 +1,25 @@
-"""Chat assistant: Claude, called with the user's own API key, with the deal model as its tools.
+"""Chat assistant: Claude, with the deal model as its tools.
 
-The key arrives with each request and is used for that request only: it is never stored or logged.
+Two ways to pay for it:
+- The site's own access ("house"), when the host provides it: on Google Cloud Run a Google identity
+  token exchanged through Workload Identity Federation (no key stored anywhere); elsewhere an
+  ANTHROPIC_API_KEY or the SDK's federation settings in the environment. Free questions are capped
+  per visitor and by a daily dollar budget.
+- A visitor's own API key, sent with each request and used for that request only (never stored or
+  logged). It always wins, and it is how a visitor goes past the free cap.
+
 The browser keeps the conversation (Anthropic message format, thinking blocks included) and sends
 it back whole each turn, so the history is append-only; the system prompt and tools never change.
 """
 
 from __future__ import annotations
 
+import functools
 import json
+import os
+import threading
+import urllib.request
+from datetime import date
 
 import anthropic
 from pydantic import ValidationError
@@ -18,6 +30,14 @@ from ..schemas import DealInput
 MODELS = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5")
 FALLBACK = {"claude-opus-5-5", "claude-sonnet-5-5"}   # server-side refusal fallback; Haiku has none
 MAX_STEPS = 8                                          # tool rounds per question
+# $ per million tokens: input, output, cache read, cache write (5 min)
+PRICES = {
+    "claude-opus-5-5": (4.0, 20.0, 0.20, 5.0),
+    "claude-sonnet-5-5": (2.0, 10.0, 0.20, 2.50),
+    "claude-haiku-5-5": (0.10, 0.50, 0.01, 0.125),
+}
+GOOGLE_TOKEN_URL = ("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/"
+                    "identity?audience=https://api.anthropic.com&format=full")
 
 SYSTEM = f"""You are the assistant inside a rental-property deal evaluator for individual investors.
 
@@ -97,23 +117,107 @@ def run_tool(changes: object, deal: dict) -> tuple[str, bool, DealInput | None, 
     return text, False, merged, f"{result.offer.verdict.upper()}: {result.offer.summary}"
 
 
-def chat(key: str, model: str, history: list, question: str, deal: dict) -> dict:
-    client = anthropic.Anthropic(api_key=key, max_retries=2)
+def house_available() -> bool:
+    return bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_FEDERATION_RULE_ID"))
+
+
+def _google_identity_token() -> str:
+    """Cloud Run's metadata server signs a fresh identity token for the service's own account."""
+    req = urllib.request.Request(GOOGLE_TOKEN_URL, headers={"Metadata-Flavor": "Google"})
+    with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=5) as r:
+        return r.read().decode()
+
+
+@functools.cache
+def house_client() -> anthropic.Anthropic | None:
+    """The site's own access, from whatever the host provides; None if nothing is configured."""
+    env = os.environ
+    if env.get("K_SERVICE") and env.get("ANTHROPIC_FEDERATION_RULE_ID") and not env.get("ANTHROPIC_IDENTITY_TOKEN_FILE"):
+        # Cloud Run (K_SERVICE is set there): Google identity token -> Anthropic WIF; the SDK
+        # exchanges it and refreshes the short-lived Anthropic token before it expires
+        return anthropic.Anthropic(max_retries=2, credentials=anthropic.WorkloadIdentityCredentials(
+            identity_token_provider=_google_identity_token,
+            federation_rule_id=env["ANTHROPIC_FEDERATION_RULE_ID"],
+            organization_id=env["ANTHROPIC_ORGANIZATION_ID"],
+            service_account_id=env.get("ANTHROPIC_SERVICE_ACCOUNT_ID") or None,
+            workspace_id=env.get("ANTHROPIC_WORKSPACE_ID") or None))
+    if house_available():
+        return anthropic.Anthropic(max_retries=2)   # the SDK reads the key or federation settings itself
+    return None
+
+
+class Allowance:
+    """Free questions on the house account: so many per visitor per day, and a daily $ budget.
+    ponytail: kept in memory, so a restart starts the day over; the spend limit set in the
+    Anthropic Console is the hard cap. Visitors are told apart by IP, which a VPN changes;
+    the daily budget is what actually bounds the bill."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.day, self.spent, self.asked = None, 0.0, {}
+
+    @staticmethod
+    def limits() -> tuple[int, float]:
+        return (int(os.environ.get("REHUB_FREE_QUESTIONS_PER_DAY", "10")),
+                float(os.environ.get("REHUB_DAILY_BUDGET_USD", "2")))
+
+    def _today(self) -> None:
+        if self.day != date.today():
+            self.day, self.spent, self.asked = date.today(), 0.0, {}
+
+    def take(self, visitor: str) -> str | None:
+        """Count one question; returns why not instead when the visitor or the day is out."""
+        per_visitor, budget = self.limits()
+        with self.lock:
+            self._today()
+            if self.spent >= budget:
+                return ("Today's free budget for Ask Claude is used up. Add your own Anthropic API key "
+                        "to keep going, or come back tomorrow.")
+            if self.asked.get(visitor, 0) >= per_visitor:
+                return (f"You've used today's {per_visitor} free questions. Add your own Anthropic API key "
+                        "to keep going.")
+            self.asked[visitor] = self.asked.get(visitor, 0) + 1
+            return None
+
+    def spend(self, usd: float) -> None:
+        with self.lock:
+            self._today()
+            self.spent += usd
+
+    def left(self, visitor: str) -> int:
+        with self.lock:
+            self._today()
+            return max(0, self.limits()[0] - self.asked.get(visitor, 0))
+
+
+ALLOWANCE = Allowance()
+
+
+def cost(model: str, usage) -> float:
+    i, o, read, write = PRICES.get(model, PRICES["claude-opus-5-5"])
+    return (i * (usage.input_tokens or 0) + o * (usage.output_tokens or 0)
+            + read * (getattr(usage, "cache_read_input_tokens", 0) or 0)
+            + write * (getattr(usage, "cache_creation_input_tokens", 0) or 0)) / 1e6
+
+
+def chat(client: anthropic.Anthropic, model: str, history: list, question: str, deal: dict) -> dict:
     extra = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"} if model in FALLBACK else {}
     inputs = json.dumps(deal, separators=(",", ":"))
     messages = [*history, {"role": "user", "content": [
         {"type": "text", "text": f"<current_inputs>{inputs}</current_inputs>\n\n{question}"}]}]
-    steps, form = [], None
+    steps, form, usd = [], None, 0.0
     for _ in range(MAX_STEPS):
         resp = client.beta.messages.create(
             model=model, max_tokens=16000, system=SYSTEM, tools=TOOLS, messages=messages,
             output_config={"effort": "medium"}, cache_control={"type": "ephemeral"}, **extra)
+        usd += cost(model, resp.usage)   # priced at the requested model, also if a fallback answered
         if resp.stop_reason in ("refusal", "max_tokens"):
             # drop the whole turn: a refused or cut-off turn can't be continued cleanly
             reason = ("Claude declined to answer that. Try rephrasing the question."
                       if resp.stop_reason == "refusal" else
                       "The answer ran past the length limit. Try a narrower question.")
-            return {"messages": history, "reply": reason, "steps": steps, "deal": None, "model": resp.model}
+            return {"messages": history, "reply": reason, "steps": steps, "deal": None, "model": resp.model,
+                    "cost": usd}
         # ponytail: content is replayed as returned; a non-streaming mid-output fallback already
         # omits the declined partial, so there is nothing to strip
         messages.append({"role": "assistant", "content": [b.to_dict() for b in resp.content]})
@@ -138,4 +242,4 @@ def chat(key: str, model: str, history: list, question: str, deal: dict) -> dict
     reply = "\n\n".join(b.text for b in resp.content if b.type == "text").strip()
     if resp.stop_reason == "tool_use":
         reply = f"I stopped after {MAX_STEPS} rounds of calculations. Ask me to continue."
-    return {"messages": messages, "reply": reply, "steps": steps, "deal": form, "model": resp.model}
+    return {"messages": messages, "reply": reply, "steps": steps, "deal": form, "model": resp.model, "cost": usd}
