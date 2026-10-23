@@ -723,6 +723,17 @@ async function run() {
   const deal = collect();
   try { localStorage.setItem(STORE, JSON.stringify(deal)); } catch { /* private mode */ }
   const mine = ++seq;
+  // every number depends on the rent: ask for it rather than evaluate a house that earns nothing
+  if (deal.property.units.some(u => !(u.rent > 0))) {
+    LAST = null;
+    out.classList.remove("loading");
+    out.setAttribute("aria-busy", "false");
+    out.replaceChildren(h("section", { class: "card alert" }, h("h3", null, "Enter the rent to see the numbers"),
+      h("p", null, "Every result here (cash flow, the max offer, the verdict) depends on the monthly rent, and it's missing",
+        deal.property.units.length > 1 ? " for at least one unit." : "."),
+      h("p", { class: "note" }, "Use rents of similar homes that actually leased nearby, the listing site's rent estimate, or ask Claude for help.")));
+    return;
+  }
   out.classList.add("loading");
   out.setAttribute("aria-busy", "true");
   let res = null, body = null;
