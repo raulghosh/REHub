@@ -60,9 +60,11 @@ Deployed on Render from `main` with the `Dockerfile`; there is no server-side st
 
 - No scraping of Zillow, Redfin or Realtor.com from the server. Use user-provided content
   (paste, upload, the bookmarklet, which runs in the user's browser), licensed APIs, or public data.
-- The AI model is Claude through the official `anthropic` SDK. Each visitor brings their own
-  API key: it is sent per request and never stored or logged, and the server never holds one.
-  The model list is `MODELS` in `web/assistant.py`.
+- The AI model is Claude through the official `anthropic` SDK; the model list is `MODELS` in
+  `web/assistant.py`. Two ways to pay: the site's own access (Workload Identity Federation on
+  Cloud Run, so no key is stored, or whatever the host provides), capped per visitor and by a
+  daily budget; or a visitor's own key, sent per request and never stored or logged, which
+  always wins. Never commit a key; federation IDs are not secrets.
 
 ## Workflow
 

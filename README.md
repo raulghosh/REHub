@@ -62,10 +62,11 @@ screening funnel (triage hundreds of listings into a ranked queue) is in this re
   table; the sell-or-keep table to loan payoff; the component replacement schedule
 - Every derived assumption with its source, and plain-language warnings
 
-## Ask Claude (bring your own key)
+## Ask Claude
 
-**Ask Claude** opens a chat beside the results. Paste an Anthropic API key (from
-console.anthropic.com) and ask things like:
+**Ask Claude** opens a chat beside the results. When the site runs with its own Claude access
+(see [Deploy](#deploy-it-for-other-people)), visitors get a few free questions a day; anyone can
+paste their own Anthropic API key (from console.anthropic.com) to ask more. Ask things like:
 
 - "What's the most I can pay and still get 8% cash-on-cash?"
 - "Should I sell in year 7 or keep it until the loan is paid off?"
@@ -74,7 +75,8 @@ console.anthropic.com) and ask things like:
 
 Claude doesn't do the math: it runs this model as a tool and quotes its results. What-ifs leave
 your form alone; it changes your inputs only when you ask, and every run it made is listed in the
-chat. Pick Claude Opus 5.5 (default), Sonnet 5.5 or Haiku 5.5. Usage is billed to your key. On
+chat. Pick Claude Opus 5.5 (default), Sonnet 5.5 or Haiku 5.5. With your own key, usage is billed
+to your key. On
 Opus and Sonnet, a question Anthropic's safety filters wrongly decline is retried on a fallback
 model automatically (`fallbacks: "default"`).
 
@@ -100,8 +102,8 @@ JSON from `schemas.py` and returns the full `Result` (422 with field errors if i
 
 ## Deploy it for other people
 
-The server keeps no state. Each visitor's deals stay in their own browser, and the assistant
-runs on each visitor's own key. There are no accounts or database to run.
+The server keeps no state. Each visitor's deals stay in their own browser. There are no
+accounts or database to run.
 
 ```bash
 docker build -t deal-evaluator .
@@ -118,9 +120,50 @@ Serve it over **HTTPS only**, because visitors' API keys pass through it. All of
 that by default. Without Docker: `pip install . && sfr-eval serve --host 0.0.0.0`, with the port
 from `$PORT` (default 8000).
 
-Anyone with the URL can run the evaluator. Each evaluation is a fraction of a second of CPU, and
-the assistant only spends the visitor's own key. There is no built-in rate limit. If the link
-will be public and busy, use your host's limits or put Cloudflare in front of it.
+Anyone with the URL can run the evaluator. Each evaluation is a fraction of a second of CPU.
+There is no built-in rate limit on it; if the link will be public and busy, use your host's
+limits or put Cloudflare in front of it.
+
+### Free questions on your own Claude access
+
+Without any Anthropic settings, Ask Claude needs each visitor's own key. To pay for visitors'
+questions yourself, give the server Claude access; it picks up whichever the host provides:
+
+| Host | Setting | Stored secret? |
+|---|---|---|
+| **Google Cloud Run** | Workload Identity Federation: `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID` (and `ANTHROPIC_WORKSPACE_ID` if the rule covers several workspaces). The server swaps Cloud Run's Google identity token for a short-lived Anthropic token. | None |
+| Any host with an identity token file (Render Pro OIDC, Kubernetes) | the same variables plus `ANTHROPIC_IDENTITY_TOKEN_FILE` | None |
+| Any host | `ANTHROPIC_API_KEY` as the host's secret | The key |
+
+Free use is capped: `REHUB_FREE_QUESTIONS_PER_DAY` per visitor (default 10) and
+`REHUB_DAILY_BUDGET_USD` for everyone together (default $2, from the token usage at list prices).
+The counters live in memory and restart with the server, so also set a **monthly spend limit in
+the Anthropic Console**: that is the hard cap. Past the free cap, a visitor's own key keeps working.
+
+**Cloud Run setup** (run in Google Cloud Shell; replace the project ID):
+
+```bash
+PROJECT=your-project-id REGION=us-central1
+gcloud config set project $PROJECT
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+gcloud iam service-accounts create rehub-run --display-name "REHub on Cloud Run"
+SA=rehub-run@$PROJECT.iam.gserviceaccount.com
+git clone https://github.com/raulghosh/REHub && cd REHub
+gcloud run deploy rehub --source . --region $REGION --service-account $SA \
+  --allow-unauthenticated --max-instances 1 --memory 512Mi
+gcloud iam service-accounts describe $SA --format='value(uniqueId)'   # for the Anthropic rule
+```
+
+Then in the Claude Console: **Workload identity → Connect workload → Google Cloud**, audience
+`https://api.anthropic.com`, matching the service account's email and the unique ID printed
+above. Put the IDs it gives you on the service:
+
+```bash
+gcloud run services update rehub --region $REGION --update-env-vars \
+ANTHROPIC_FEDERATION_RULE_ID=fdrl_...,ANTHROPIC_ORGANIZATION_ID=...,ANTHROPIC_SERVICE_ACCOUNT_ID=svac_...
+```
+
+`--max-instances 1` keeps the free-question counters in one place and bounds the cost.
 
 ## Data
 

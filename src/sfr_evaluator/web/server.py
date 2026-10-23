@@ -5,8 +5,9 @@ Standard library HTTP server, stateless (each browser keeps its own deals), safe
     GET  /guide           the investor guide (guide.html)
     GET  /api/defaults    a sample deal plus default rehab inputs, so the page holds no defaults
     POST /api/evaluate    DealInput JSON -> Result JSON (422 + field errors if invalid)
-    POST /api/chat        {model, messages, question, deal} + the user's own key in the
-                          X-Anthropic-Key header -> {messages, reply, steps, deal, model}
+    POST /api/chat        {model, messages, question, deal}, optionally with the visitor's own key in
+                          the X-Anthropic-Key header (else the site's own access, capped)
+                          -> {messages, reply, steps, deal, model, free_left}
 """
 
 from __future__ import annotations
@@ -49,6 +50,7 @@ SAMPLE = DealInput.model_validate({
 DEFAULTS = json.dumps({
     "deal": SAMPLE.model_dump(mode="json"),
     "rehab": Rehab(budget=30_000).model_dump(mode="json"),
+    "assistant": {"house": assistant.house_available(), "free_questions": assistant.Allowance.limits()[0]},
 }).encode()
 
 
@@ -107,8 +109,6 @@ class Handler(BaseHTTPRequestHandler):
 
     def _chat(self, body: bytes) -> None:
         key = (self.headers.get("X-Anthropic-Key") or "").strip()
-        if not key:
-            return self._json(401, {"error": "Add your Anthropic API key first."})
         try:
             req = json.loads(body)
             ok = (req["model"] in assistant.MODELS and isinstance(req["messages"], list)
@@ -118,11 +118,35 @@ class Handler(BaseHTTPRequestHandler):
             ok = False
         if not ok:
             return self._json(400, {"error": "bad chat request"})
+        visitor = None
+        if key:
+            client = anthropic.Anthropic(api_key=key, max_retries=2)
+        else:
+            client = assistant.house_client()
+            if client is None:
+                return self._json(401, {"error": "Add your Anthropic API key first."})
+            # ponytail: the first X-Forwarded-For entry; a visitor can fake it, so the per-visitor count
+            # is a courtesy limit and the daily budget is what bounds the bill
+            visitor = (self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip()
+            refusal = assistant.ALLOWANCE.take(visitor)
+            if refusal:
+                return self._json(429, {"error": refusal, "need_key": True})
         try:
-            out = assistant.chat(key, req["model"], req["messages"], req["question"].strip(), req["deal"])
+            out = assistant.chat(client, req["model"], req["messages"], req["question"].strip(), req["deal"])
+        except anthropic.WorkloadIdentityError:   # the site's own access is misconfigured
+            traceback.print_exc()
+            return self._json(503, {"error": "This site's own Claude access isn't working right now. "
+                                             "Add your own Anthropic API key to keep going.", "need_key": True})
         except anthropic.APIError as e:
             code, msg = next(((c, m) for cls, c, m in API_ERRORS if isinstance(e, cls)), (502, None))
-            return self._json(code, {"error": msg or f"Anthropic: {e.message}"})
+            if not key and code != 429:   # the site's own access failed: the cause goes to the log
+                traceback.print_exc()
+                msg = "This site's own Claude access isn't working right now. Add your own Anthropic API key to keep going."
+            return self._json(code, {"error": msg or f"Anthropic: {e.message}", "need_key": not key})
+        usd = out.pop("cost")
+        if visitor is not None:
+            assistant.ALLOWANCE.spend(usd)
+            out["free_left"] = assistant.ALLOWANCE.left(visitor)
         self._json(200, out)
 
     def log_message(self, fmt: str, *args: object) -> None:
