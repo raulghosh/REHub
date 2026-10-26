@@ -128,6 +128,9 @@ table.edit button { padding: 4px 8px; }
 .hero .big.words { font-size: 30px; }
 .gap { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--vt); }
 .gap.ok { color: var(--good-text); }
+.mos { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.mos input { flex: 1; min-width: 80px; padding: 0; border: 0; background: none; accent-color: var(--s1); }
+.mos b { min-width: 34px; text-align: right; font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .facts { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--ink-2); font-size: 12.5px; padding-top: 10px; border-top: 1px solid var(--grid); }
 .facts b { color: var(--ink); font-weight: 600; }
 @media (max-width: 760px) { .vgrid { grid-template-columns: minmax(0, 1fr); gap: 14px; } .hero .big { font-size: 40px; } }
@@ -868,21 +871,28 @@ function split(...kids) {
   return kids.length > 1 ? h("div", { class: "split" }, kids) : kids[0] || null;
 }
 
+const VERDICT = { buy: ["BUY", "✓"], negotiate: ["NEGOTIATE", "↔"], pass: ["PASS", "✕"] };
+const pillKids = o => [h("i", { "aria-hidden": "true" }, VERDICT[o.verdict][1]), VERDICT[o.verdict][0], info("verdict")];
+function heroKids(o) {
+  const none = o.max_offer == null;
+  return [h("div", { class: "label" }, "Max offer", info("max-offer")),
+    h("div", { class: `big${none ? " words" : ""}` }, none ? "No price works" : money(o.max_offer)),
+    none ? null : o.price > o.max_offer
+      ? h("p", { class: "gap" }, `Your price is ${money(o.price - o.max_offer)} above it.`)
+      : h("p", { class: "gap ok" }, `Your price is ${money(o.max_offer - o.price)} below it.`)];
+}
+
 function verdictCard(r) {
-  const o = r.offer, label = { buy: "BUY", negotiate: "NEGOTIATE", pass: "PASS" }[o.verdict];
-  const icon = { buy: "✓", negotiate: "↔", pass: "✕" }[o.verdict];
-  const isRehab = o.rule_70 != null, none = o.max_offer == null;
+  const o = r.offer, isRehab = o.rule_70 != null, mos = Math.round(o.margin_of_safety_pct * 100);
+  const range = h("input", { type: "range", id: "mos", min: 0, max: Math.max(30, mos), step: 1, value: mos,
+    "aria-label": "Margin of safety", "aria-valuetext": `${mos}%` });
   return h("section", { class: `card verdict ${o.verdict}` },
     h("div", { class: "verdict-top" },
-      h("span", { class: "pill" }, h("i", { "aria-hidden": "true" }, icon), label, info("verdict")),
+      h("span", { class: "pill" }, pillKids(o)),
       h("p", { class: "summary" }, o.summary)),
     h("div", { class: "vgrid" },
-      h("div", { class: "hero" },
-        h("div", { class: "label" }, `Max offer · ${pct(o.margin_of_safety_pct, 0)} margin of safety`, info("max-offer")),
-        h("div", { class: `big${none ? " words" : ""}` }, none ? "No price works" : money(o.max_offer)),
-        none ? null : o.price > o.max_offer
-          ? h("p", { class: "gap" }, `Your price is ${money(o.price - o.max_offer)} above it.`)
-          : h("p", { class: "gap ok" }, `Your price is ${money(o.max_offer - o.price)} below it.`)),
+      h("div", null, h("div", { class: "hero" }, heroKids(o)),
+        h("label", { class: "mos" }, h("span", null, "Margin of safety", info("margin-of-safety")), range, h("b", { id: "mosOut" }, `${mos}%`))),
       h("div", { class: "ladder", id: "ladder", role: "img" })),
     // the ladder's numbers as text (and their definitions)
     h("div", { class: "facts" },
@@ -894,6 +904,30 @@ function verdictCard(r) {
       o.margin_at_price != null ? h("span", null, "Margin at your price ", h("b", null, pct(o.margin_at_price, 0))) : null,
       isRehab ? h("span", null, "70% rule ", h("b", null, money(o.rule_70))) : null));
 }
+
+// Margin of safety slider. The margin only moves the max offer and the verdict (the price your
+// targets support doesn't depend on it), so dragging updates those here, the same way the model
+// does (metrics/returns.py), and letting go re-runs the model for the rest.
+function previewMargin(mos) {
+  const o = { ...LAST.offer, margin_of_safety_pct: mos };
+  if (o.max_offer != null && o.walk_away != null) {
+    o.max_offer = Math.min((o.investment_value ?? o.walk_away) * (1 - mos), o.walk_away);
+    o.verdict = o.price <= o.max_offer + 0.5 ? "buy" : o.price <= o.walk_away ? "negotiate" : "pass";
+  }
+  const v = $(".verdict", out);
+  v.className = `card verdict ${o.verdict}`;
+  $(".pill", v).replaceChildren(...pillKids(o));
+  $(".hero", v).replaceChildren(...heroKids(o).filter(Boolean));
+  $("#mosOut").textContent = `${Math.round(mos * 100)}%`;
+  $("#mos").setAttribute("aria-valuetext", `${Math.round(mos * 100)}%`);
+  drawLadder({ ...LAST, offer: o });
+}
+out.addEventListener("input", e => { if (e.target.id === "mos") previewMargin(+e.target.value / 100); });
+out.addEventListener("change", e => {
+  if (e.target.id !== "mos") return;
+  $("[data-p='targets.margin_of_safety_pct']", form).value = e.target.value;
+  sync(); run();
+});
 
 function targetsCard(o) {
   if (!o.targets.length) return null;
@@ -1171,8 +1205,10 @@ function render(r) {
     h("button", { type: "button", class: "tab", role: "tab", id: `tab-${k}`, "aria-controls": `panel-${k}`, title: sub,
       "aria-selected": String(k === TAB), tabindex: k === TAB ? "0" : "-1", "data-tab": k },
       title, k === "overview" && r.warnings.length ? h("span", { class: "count", "aria-label": `${r.warnings.length} warnings` }, r.warnings.length) : null)));
+  const refocus = document.activeElement?.id === "mos";   // keyboard steps re-run the model
   out.replaceChildren(verdictCard(r), tabs, ...TABS.map(([k]) => h("div", { class: "panel", role: "tabpanel",
     id: `panel-${k}`, "aria-labelledby": `tab-${k}`, hidden: k !== TAB }, ...panels[k].filter(Boolean))));
+  if (refocus) $("#mos").focus();
   drawCharts();
 }
 

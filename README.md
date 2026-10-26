@@ -15,7 +15,8 @@ a short deal sheet (zip, price, type, size, rent per unit) above one-line assump
 showing its current setting (e.g. "Conventional · 25% down · score 740") until you open it. On
 the right the verdict stays on top: the max offer as one large number beside a price ladder that
 shows where your price, the max offer, your targets' limit and market value fall on the buy /
-negotiate / pass zones. Below it, five tabs (Should I buy it? · What will I earn? · How do I pay
+negotiate / pass zones. A margin-of-safety slider under the max offer moves the max offer, the
+verdict and the zones as you drag. Below it, five tabs (Should I buy it? · What will I earn? · How do I pay
 for it? · What could go wrong? · Every number) lead with key numbers and charts; the detailed
 tables fold away behind one-line summaries. New to the
 terms? Every measure has an ⓘ tooltip (definition, formula, rule of thumb), and the
