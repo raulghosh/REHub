@@ -359,6 +359,7 @@ class Offer(BaseModel):
     verdict: Literal["buy", "negotiate", "pass"]
     summary: str
     rule_70: float | None = None    # distressed: 70% of ARV minus rehab
+    walk_away: float | None = None  # above this price the verdict is pass (min of investment value, ceiling)
     targets: list[TargetCheck]
 
 

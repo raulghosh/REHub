@@ -10,10 +10,14 @@ pip install -e .
 sfr-eval serve                # open http://127.0.0.1:8000
 ```
 
-The page recalculates as you type and remembers your last deal in the browser. The verdict
-stays on top; everything else sits in five tabs (Should I buy it? · What will I earn? · How do I
-pay for it? · What could go wrong? · Every number), and the inputs start with the basics, with
-the optional fine-tuning collapsed below. New to the
+The page recalculates as you type and remembers your last deal in the browser. On the left is
+a short deal sheet (zip, price, type, size, rent per unit) above one-line assumption rows, each
+showing its current setting (e.g. "Conventional · 25% down · score 740") until you open it. On
+the right the verdict stays on top: the max offer as one large number beside a price ladder that
+shows where your price, the max offer, your targets' limit and market value fall on the buy /
+negotiate / pass zones. Below it, five tabs (Should I buy it? · What will I earn? · How do I pay
+for it? · What could go wrong? · Every number) lead with key numbers and charts; the detailed
+tables fold away behind one-line summaries. New to the
 terms? Every measure has an ⓘ tooltip (definition, formula, rule of thumb), and the
 **Investor guide** (`/guide`) walks one example deal through every number. **Ask Claude**
 opens a chat that runs the model for you, using your own Anthropic API key. The same model runs

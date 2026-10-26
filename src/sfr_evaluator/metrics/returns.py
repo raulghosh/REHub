@@ -165,7 +165,8 @@ def offer(deal: DealInput, r: Resolved, at_price: Metrics) -> Offer:
     return Offer(price=price, market_value=r.base_value, investment_value=investment,
                  limited_by=limited, margin_of_safety_pct=t.margin_of_safety_pct, max_offer=max_offer,
                  margin_at_price=margin, verdict=verdict, summary=summary,
-                 rule_70=0.7 * r.arv - r.rehab_total if r.arv else None, targets=checks)
+                 rule_70=0.7 * r.arv - r.rehab_total if r.arv else None, targets=checks,
+                 walk_away=None if blocked else min(anchor, ceiling))
 
 
 def _fmt(name: str, v: float) -> str:
