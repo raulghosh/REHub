@@ -49,7 +49,9 @@ Deployed on Render from `main` with the `Dockerfile`; there is no server-side st
 - Users are often new to investing: plain words, and every new measure or input term gets a
   tooltip (`TERMS` in `index.html`) **and** a section in `guide.html` with the same id.
 - Color means something: green or red only against a user's target, amber for warnings, blue for "start here".
-- The verdict stays on top; results live in the five question tabs; optional inputs stay collapsed.
+- The verdict stays on top; results live in the five question tabs; optional inputs stay collapsed
+  as assumption rows whose summary (`SUMS` in `index.html`) shows the current setting. Each tab
+  leads with tiles or a chart; long tables fold behind a one-line summary (`fold()`, `more()`).
 - Anything from outside (URL hash, pasted text, uploads, listing imports) is untrusted:
   range-check numbers, set text with `textContent` / `h()`, never `innerHTML`; links only if `https:`.
 - Before pushing a UI change, load the page in a headless browser (Playwright with the

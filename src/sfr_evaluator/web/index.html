@@ -3,25 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deal Evaluator</title>
+<title>Deal evaluator · REHub</title>
 <style>
 :root {
   color-scheme: light;
-  --page: #f9f9f7; --surface: #fcfcfb; --card: #ffffff;
+  --page: #f4f4f1; --surface: #fcfcfb; --card: #ffffff;
   --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
-  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
-  --s1: #2a78d6; --s2: #eb6834; --neg: #e34948;
+  --grid: #e8e7e1; --axis: #c3c2b7; --border: rgba(11,11,11,0.09);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --neg: #e34948;
   --good: #0ca30c; --good-text: #006300; --warn: #fab219; --warn-text: #8a5a00; --crit: #d03b3b; --crit-text: #b42323;
-  --field: #ffffff; --focus: #2a78d6;
+  --field: #ffffff; --focus: #2a78d6; --top: 52px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page: #0d0d0d; --surface: #1a1a19; --card: #1a1a19;
+    --page: #0d0d0d; --surface: #1a1a19; --card: #161615;
     --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
-    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
-    --s1: #3987e5; --s2: #d95926; --neg: #e66767; --good-text: #0ca30c; --warn-text: #f5c04a; --crit-text: #f08080;
-    --field: #232322; --focus: #3987e5;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.09);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --neg: #e66767; --good-text: #0ca30c; --warn-text: #f5c04a; --crit-text: #f08080;
+    --field: #1f1f1e; --focus: #3987e5;
   }
 }
 * { box-sizing: border-box; }
@@ -29,35 +29,57 @@
 html, body { margin: 0; }
 body { background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
 h1, h2, h3 { margin: 0; line-height: 1.2; }
-button { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-button:hover, a.btn:hover { border-color: var(--axis); }
-a.btn { font: inherit; color: inherit; text-decoration: none; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
+button, a.btn, .menu > summary { font: inherit; color: inherit; text-decoration: none; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button:hover, a.btn:hover, .menu > summary:hover { border-color: var(--axis); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.muted { color: var(--muted); }
+.hint { margin: 0; font-size: 12px; color: var(--muted); }
+.note { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
 
-.top { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--card); }
-.top h1 { font-size: 18px; }
-.top p { margin: 2px 0 0; color: var(--ink-2); font-size: 13px; }
-.top-actions { display: flex; gap: 8px; flex-shrink: 0; }
+/* ---------- app shell ---------- */
+.top { position: sticky; top: 0; z-index: 8; height: var(--top); display: flex; gap: 14px; align-items: center; padding: 0 18px; background: var(--card); border-bottom: 1px solid var(--border); }
+.brand { display: flex; align-items: baseline; gap: 8px; color: inherit; text-decoration: none; flex-shrink: 0; }
+.brand b { font-size: 16px; letter-spacing: .02em; }
+.brand span { color: var(--ink-2); font-size: 14px; }
+.brand span::before { content: "/"; margin-right: 8px; color: var(--axis); }
+.tagline { margin: 0; flex: 1; min-width: 0; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-actions { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+.menu { position: relative; }
+.menu > summary { list-style: none; padding: 6px 10px; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu > div { position: absolute; right: 0; top: calc(100% + 6px); z-index: 9; display: grid; gap: 2px; min-width: 170px; padding: 6px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); }
+.menu > div button { border: 0; text-align: left; background: none; }
+.menu > div button:hover { background: var(--surface); }
 
-.layout { display: grid; grid-template-columns: minmax(340px, 430px) minmax(0, 1fr); align-items: start; }
-.inputs { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 14px 14px 40px; border-right: 1px solid var(--border); }
-.results { padding: 16px 20px 60px; display: grid; gap: 14px; min-width: 0; transition: opacity .15s; }
+.layout { display: grid; grid-template-columns: 372px minmax(0, 1fr); align-items: start; }
+.inputs { position: sticky; top: var(--top); height: calc(100vh - var(--top)); overflow-y: auto; padding: 14px 14px 40px; border-right: 1px solid var(--border); }
+.results { padding: 16px 22px 60px; display: grid; gap: 14px; min-width: 0; max-width: 1280px; transition: opacity .15s; }
 .results.loading { opacity: .55; }
 @media (max-width: 980px) {
+  .top { position: static; height: auto; flex-wrap: wrap; padding: 10px 16px; row-gap: 8px; }
+  .tagline { display: none; }
   .layout { grid-template-columns: minmax(0, 1fr); }
   .inputs { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
   .results { padding: 14px 16px 60px; }
-  .top { flex-wrap: wrap; padding: 12px 16px; }
-  .top-actions { flex-wrap: wrap; flex-shrink: 1; }
 }
 
-details.sec { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; }
-details.sec > summary { cursor: pointer; list-style: none; padding: 11px 14px; font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+/* ---------- inputs: the deal sheet ---------- */
+.start { margin: 0 0 12px; padding: 9px 12px; border-radius: 10px; font-size: 13px; color: var(--ink-2); background: color-mix(in srgb, var(--s1) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--s1) 25%, var(--border)); }
+.start b { color: var(--s1); }
+.start.import { background: color-mix(in srgb, var(--warn) 12%, var(--card)); border-color: color-mix(in srgb, var(--warn) 50%, var(--border)); color: var(--ink); }
+.start.import button { float: right; margin: -3px -4px 0 8px; padding: 0 7px; border: 0; background: none; font-size: 16px; color: var(--muted); }
+.in-h { margin: 16px 2px 8px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.in-h small { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); }
+.sheet { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: grid; gap: 12px; }
+.rows { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.rows > details + details { border-top: 1px solid var(--grid); }
+details.sec > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; padding: 10px 12px; font-weight: 600; font-size: 13.5px; white-space: nowrap; }
 details.sec > summary::-webkit-details-marker { display: none; }
-details.sec > summary::after { content: "+"; color: var(--muted); font-weight: 400; }
-details.sec[open] > summary::after { content: "\2212"; }
-details.sec > summary small { font-weight: 400; color: var(--muted); margin-left: auto; margin-right: 6px; }
-.sec-body { padding: 0 14px 14px; display: grid; gap: 12px; }
+details.sec > summary::after { content: "\203A"; color: var(--muted); font-size: 16px; line-height: 1; transition: transform .15s; }
+details.sec[open] > summary { background: var(--surface); }
+details.sec[open] > summary::after { transform: rotate(90deg); }
+details.sec .sum { margin-left: auto; min-width: 0; font-weight: 400; font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sec-body { padding: 8px 12px 14px; display: grid; gap: 12px; background: var(--surface); }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
 .f { display: grid; gap: 3px; min-width: 0; }
 .f > span { font-size: 12px; color: var(--ink-2); display: flex; justify-content: space-between; gap: 6px; }
@@ -65,60 +87,148 @@ details.sec > summary small { font-weight: 400; color: var(--muted); margin-left
 input, select { width: 100%; font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px; min-width: 0; }
 input::placeholder { color: var(--muted); }
 input:invalid { border-color: var(--crit); }
+.f.key > span { color: var(--s1); font-weight: 600; }
+.f.key input, input.key { border-color: color-mix(in srgb, var(--s1) 55%, var(--border)); background: color-mix(in srgb, var(--s1) 6%, var(--field)); }
 .q { font-size: 11px; color: var(--muted); display: inline-flex; gap: 3px; align-items: center; cursor: pointer; }
 .q input { width: auto; margin: 0; }
 .check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
 .check input { width: auto; margin-top: 3px; }
 .check small { display: block; color: var(--muted); font-size: 12px; }
 .comp-item { padding: 6px 0; border-bottom: 1px solid var(--grid); }
-.scroll { max-height: 340px; overflow-y: auto; }
-tr.mark td { background: color-mix(in srgb, var(--s1) 10%, transparent); }
-.muted { color: var(--muted); }
-.hint { margin: 0; font-size: 12px; color: var(--muted); }
-.seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--field); }
 .seg label { flex: 1; text-align: center; padding: 6px 4px; cursor: pointer; font-size: 13px; }
 .seg input { position: absolute; opacity: 0; width: 1px; }
 .seg label:has(input:checked) { background: var(--s1); color: #fff; font-weight: 600; }
 .seg label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
 table.edit { width: 100%; border-collapse: collapse; }
 table.edit th { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; padding: 0 4px 3px 0; }
+table.edit th.key { color: var(--s1); font-weight: 600; }
 table.edit td { padding: 2px 4px 2px 0; }
 table.edit button { padding: 4px 8px; }
 .row-actions { display: flex; gap: 8px; }
 
+/* ---------- results ---------- */
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
-.card > h2, .card > h3 { font-size: 15px; margin-bottom: 10px; }
-.card > h2 small, .card > h3 small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
-.verdict { display: grid; gap: 12px; border-left: 6px solid var(--v); background: color-mix(in srgb, var(--v) 8%, var(--card)); }
+.card > h2, .card > h3 { font-size: 15px; margin-bottom: 12px; }
+.card > h2 small, .card > h3 small, details.fold > summary small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
+.alert { border-left: 4px solid var(--warn); }
+.errors { border-color: var(--crit); }
+.errors ul { margin: 6px 0 0; padding-left: 18px; }
+
+.verdict { display: grid; gap: 14px; border-top: 4px solid var(--v); }
 .verdict.buy { --v: var(--good); --vt: var(--good-text); } .verdict.negotiate { --v: var(--warn); --vt: var(--warn-text); } .verdict.pass { --v: var(--crit); --vt: var(--crit-text); }
-.verdict .pill { font-size: 15px; padding: 7px 15px; background: var(--card); border-color: var(--v); }
-.verdict .hero .big { color: var(--vt); }
-.gap { margin: 0; font-weight: 650; color: var(--vt); }
+.verdict-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 13px; border-radius: 999px; font-weight: 700; letter-spacing: .04em; font-size: 14px; border: 1px solid var(--v); background: color-mix(in srgb, var(--v) 10%, var(--card)); }
+.pill i { font-style: normal; width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-size: 12px; background: var(--v); }
+.verdict.negotiate .pill i { color: #0b0b0b; }
+.summary { font-size: 15px; margin: 0; flex: 1; min-width: 240px; }
+.vgrid { display: grid; grid-template-columns: minmax(200px, 270px) minmax(0, 1fr); gap: 28px; align-items: center; }
+.hero .label { font-size: 12px; color: var(--ink-2); }
+.hero .big { font-size: 48px; font-weight: 650; line-height: 1.05; color: var(--vt); font-variant-numeric: proportional-nums; letter-spacing: -.01em; }
+.hero .big.words { font-size: 30px; }
+.gap { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--vt); }
 .gap.ok { color: var(--good-text); }
-.alert { border-left: 6px solid var(--warn); background: color-mix(in srgb, var(--warn) 9%, var(--card)); }
-.in-h { margin: 18px 2px 8px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--s1); }
-.in-h small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); }
-.tabs { position: sticky; top: 0; z-index: 5; display: flex; gap: 4px; overflow-x: auto; margin: 0 -20px; padding: 8px 20px 0; background: var(--page); border-bottom: 1px solid var(--border); scrollbar-width: none; }
-.tab { flex: 1 1 0; min-width: 130px; display: grid; align-content: start; gap: 1px; text-align: left; padding: 9px 14px 10px; border: 0; border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0; background: none; }
-.tab b { font-size: 14px; font-weight: 650; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
-.tab small { font-size: 12px; color: var(--muted); }
-.tab:hover { background: var(--card); border-color: transparent; border-bottom-color: var(--axis); }
-.tab[aria-selected="true"] { background: var(--card); border-bottom-color: var(--s1); }
-.tab[aria-selected="true"] b { color: var(--s1); }
+.mos { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.mos input { flex: 1; min-width: 80px; padding: 0; border: 0; background: none; accent-color: var(--s1); }
+.mos b { min-width: 34px; text-align: right; font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.facts { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--ink-2); font-size: 12.5px; padding-top: 10px; border-top: 1px solid var(--grid); }
+.facts b { color: var(--ink); font-weight: 600; }
+@media (max-width: 760px) { .vgrid { grid-template-columns: minmax(0, 1fr); gap: 14px; } .hero .big { font-size: 40px; } }
+
+/* price ladder: one scale, the verdict zones and the four prices that set them */
+.ladder { position: relative; min-width: 0; }
+.zone.buy { background: color-mix(in srgb, var(--good) 55%, transparent); }
+.zone.negotiate { background: color-mix(in srgb, var(--warn) 60%, transparent); }
+.zone.pass { background: color-mix(in srgb, var(--crit) 40%, transparent); }
+.ladder .ml { position: absolute; font-size: 11.5px; line-height: 1.25; color: var(--ink-2); white-space: nowrap; }
+.ladder .ml b { display: block; font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ladder .ml.you b { font-size: 14px; }
+
+.tabs { position: sticky; top: var(--top); z-index: 5; display: flex; gap: 2px; overflow-x: auto; margin: 0 -22px; padding: 0 22px; background: var(--page); border-bottom: 1px solid var(--border); scrollbar-width: none; }
+.tab { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 11px 14px 9px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.tab:hover { color: var(--ink); border-bottom-color: var(--axis); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--s1); }
 .tab .count { min-width: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; line-height: 18px; text-align: center; background: var(--warn); color: #0b0b0b; }
 .panel { display: grid; gap: 14px; min-width: 0; }
-@media (max-width: 1240px) { .tabs { flex-wrap: wrap; } .tab { min-width: max-content; } .tab small { display: none; } }
-@media (max-width: 980px) { .tabs { position: static; margin: 0 -16px; padding: 8px 16px 0; } }
+@media (max-width: 980px) { .tabs { position: static; margin: 0 -16px; padding: 0 16px; } }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.kpis.six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 1380px) { .kpis.six { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .kpis.six, .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); min-width: 0; }
+.tile .label { font-size: 12px; color: var(--ink-2); }
+.tile .value { font-size: 22px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tile .sub { font-size: 12px; color: var(--muted); }
 .tile.good { border-left: 4px solid var(--good); } .tile.good .value { color: var(--good-text); }
 .tile.bad { border-left: 4px solid var(--crit); } .tile.bad .value { color: var(--crit-text); }
 .tile.warn { border-left: 4px solid var(--warn); } .tile.warn .value { color: var(--warn-text); }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.two .tile.on { border-color: var(--s1); }
+.minis { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--grid); font-size: 12.5px; }
+.minis > div { display: flex; gap: 6px; align-items: baseline; }
+.minis dt { color: var(--ink-2); }
+.minis dd { margin: 0; font-weight: 650; font-variant-numeric: tabular-nums; }
+.minis small { color: var(--muted); }
+.split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media (max-width: 1240px) { .split { grid-template-columns: minmax(0, 1fr); } }
+
+.warnings { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.warnings li::marker { content: "\26A0  "; color: var(--warn); }
+details.more { margin-top: 8px; }
+details.more > summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--s1); list-style: none; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more[open] > summary { margin-bottom: 8px; }
+details.fold > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary h3 { font-size: 15px; }
+details.fold > summary .sum { color: var(--ink-2); font-size: 13px; }
+details.fold > summary::after { content: "Show"; margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--s1); }
+details.fold[open] > summary { margin-bottom: 12px; }
+details.fold[open] > summary::after { content: "Hide"; }
+
+.status { display: inline-flex; align-items: center; gap: 5px; }
+.status i { font-style: normal; font-weight: 700; }
+.status.ok i { color: var(--good-text); } .status.no i { color: var(--crit); }
 .ok-text { color: var(--good-text); font-weight: 600; } .bad-text { color: var(--crit-text); font-weight: 600; }
+.tbl-wrap { overflow-x: auto; }
+.scroll { max-height: 340px; overflow-y: auto; }
+table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+table.data th, table.data td { padding: 6px 8px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+table.data thead th { font-size: 12px; font-weight: 500; color: var(--ink-2); position: sticky; top: 0; background: var(--card); }
+table.data tr.total td { font-weight: 650; border-top: 1px solid var(--axis); }
+table.data td.src { text-align: left; white-space: normal; color: var(--ink-2); }
+table.data td.wrap { white-space: normal; }
+tr.mark td { background: color-mix(in srgb, var(--s1) 10%, transparent); }
 tr.miss td { background: color-mix(in srgb, var(--crit) 6%, transparent); }
+.neg { color: var(--crit); }
 .pbar { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .pbar i { display: inline-block; width: 64px; height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; }
 .pbar i b { display: block; height: 100%; background: var(--warn); }
-.f.key > span { color: var(--s1); font-weight: 600; }
-.f.key input, input.key { border-color: color-mix(in srgb, var(--s1) 55%, var(--border)); background: color-mix(in srgb, var(--s1) 6%, var(--field)); }
+.cashbar { display: flex; gap: 2px; height: 14px; margin: 2px 0 12px; }
+.cashbar i { display: block; height: 100%; min-width: 2px; }
+.cashbar i:first-child { border-radius: 4px 0 0 4px; } .cashbar i:last-child { border-radius: 0 4px 4px 0; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
+
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+.chart text.ink { fill: var(--ink-2); font-size: 12px; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .baseline { stroke: var(--axis); stroke-width: 1; }
+.chart .cross { stroke: var(--axis); stroke-width: 1; }
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; flex-wrap: wrap; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .key { width: 14px; height: 2px; border-radius: 1px; }
+.tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); display: none; white-space: nowrap; z-index: 2; }
+.tip .t { color: var(--ink-2); margin-bottom: 3px; }
+.tip .r { display: flex; align-items: center; gap: 7px; }
+.tip .r b { font-weight: 650; }
+.tip .r .key { width: 10px; height: 2px; }
+.bar:hover, .bar:focus { opacity: .82; outline: none; }
+
+/* ---------- tooltips, dialog, chat ---------- */
 .info { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-left: 5px; border-radius: 50%; vertical-align: 1px; flex-shrink: 0;
   font: italic 700 10.5px/1 Georgia, serif; color: var(--s1); background: color-mix(in srgb, var(--s1) 12%, transparent); cursor: help; }
 .info:hover, .info[aria-expanded="true"] { color: #fff; background: var(--s1); }
@@ -135,66 +245,6 @@ dialog.modal::backdrop { background: rgba(0,0,0,.4); }
 dialog.modal h2 { font-size: 17px; margin-bottom: 10px; }
 dialog.modal ol { padding-left: 20px; display: grid; gap: 8px; }
 a.bm { display: inline-block; margin-top: 6px; padding: 8px 14px; border-radius: 8px; background: var(--s1); color: #fff; font-weight: 650; text-decoration: none; cursor: grab; }
-.start.import { background: color-mix(in srgb, var(--warn) 12%, var(--card)); border-color: color-mix(in srgb, var(--warn) 50%, var(--border)); color: var(--ink); }
-.start.import button { float: right; margin: -3px -4px 0 8px; padding: 0 7px; border: 0; background: none; font-size: 16px; color: var(--muted); }
-.start { margin: 0 0 10px; padding: 9px 12px; border-radius: 10px; font-size: 13px; color: var(--ink-2); background: color-mix(in srgb, var(--s1) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--s1) 25%, var(--border)); }
-.start b { color: var(--s1); }
-.verdict-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; font-weight: 700; letter-spacing: .04em; font-size: 13px; border: 1px solid var(--border); }
-.pill i { font-style: normal; width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-size: 12px; }
-.pill.buy i { background: var(--good); } .pill.negotiate i { background: var(--warn); color: #0b0b0b; } .pill.pass i { background: var(--crit); }
-.summary { font-size: 15px; margin: 0; }
-.hero { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-end; }
-.hero .label { font-size: 12px; color: var(--ink-2); }
-.hero .big { font-size: 40px; font-weight: 650; line-height: 1.05; }
-.hero .mid { font-size: 20px; font-weight: 600; }
-.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--ink-2); font-size: 13px; }
-.facts b { color: var(--ink); font-weight: 600; }
-.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-.tile { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); }
-.tile .label { font-size: 12px; color: var(--ink-2); }
-.tile .value { font-size: 20px; font-weight: 600; margin-top: 2px; }
-.tile .sub { font-size: 12px; color: var(--muted); }
-.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.two .tile.on { border-color: var(--s1); }
-.warnings { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
-.warnings li::marker { content: "\26A0  "; color: var(--warn); }
-.status { display: inline-flex; align-items: center; gap: 5px; }
-.status i { font-style: normal; font-weight: 700; }
-.status.ok i { color: var(--good-text); } .status.no i { color: var(--crit); }
-.tbl-wrap { overflow-x: auto; }
-table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
-table.data th, table.data td { padding: 6px 8px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
-table.data th:first-child, table.data td:first-child { text-align: left; }
-table.data thead th { font-size: 12px; font-weight: 500; color: var(--ink-2); }
-table.data tr.total td { font-weight: 650; border-top: 1px solid var(--axis); }
-table.data td.src { text-align: left; white-space: normal; color: var(--ink-2); }
-table.data td.wrap { white-space: normal; }
-.neg { color: var(--crit); }
-.split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-@media (max-width: 1240px) { .split { grid-template-columns: minmax(0, 1fr); } }
-.errors { border-color: var(--crit); }
-.errors ul { margin: 6px 0 0; padding-left: 18px; }
-.note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
-
-.chart { position: relative; }
-.chart svg { display: block; width: 100%; overflow: visible; }
-.chart text { fill: var(--muted); font-size: 11px; font-family: inherit; }
-.chart text.ink { fill: var(--ink-2); font-size: 12px; }
-.chart .gridline { stroke: var(--grid); stroke-width: 1; }
-.chart .baseline { stroke: var(--axis); stroke-width: 1; }
-.chart .cross { stroke: var(--axis); stroke-width: 1; }
-.legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; flex-wrap: wrap; }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend .key { width: 14px; height: 2px; border-radius: 1px; }
-.legend .key.box { width: 12px; height: 12px; border-radius: 3px; }
-.tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); display: none; white-space: nowrap; z-index: 2; }
-.tip .t { color: var(--ink-2); margin-bottom: 3px; }
-.tip .r { display: flex; align-items: center; gap: 7px; }
-.tip .r b { font-weight: 650; }
-.tip .r .key { width: 10px; height: 2px; }
-.bar:hover, .bar:focus { opacity: .82; outline: none; }
-
 .chat { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 10; display: flex; flex-direction: column; background: var(--card); border-left: 1px solid var(--border); box-shadow: -8px 0 28px rgba(0,0,0,.14); }
 .chat-head { display: flex; gap: 8px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); }
 .chat-head h2 { font-size: 15px; margin-right: auto; }
@@ -221,56 +271,58 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
 </head>
 <body>
 <header class="top">
-  <div>
-    <h1>Deal Evaluator</h1>
-    <p>Buy-and-hold rentals for individual investors: houses, condos, small multifamily and fixer-uppers.</p>
-  </div>
-  <div class="top-actions">
-    <button type="button" id="bmOpen">From a listing</button>
-    <a class="btn" href="/guide" target="_blank" rel="noopener">Investor guide</a>
+  <a class="brand" href="/"><b>REHub</b><span>Deal evaluator</span></a>
+  <p class="tagline">Buy-and-hold rentals for individual investors: houses, condos, small multifamily and fixer-uppers.</p>
+  <nav class="top-actions" aria-label="Tools">
+    <button type="button" id="bmOpen">Import a listing</button>
     <button type="button" id="chatOpen">Ask Claude</button>
-    <button type="button" id="reset">Reset to sample</button>
-    <button type="button" id="print">Print</button>
-  </div>
+    <a class="btn" href="/guide" target="_blank" rel="noopener">Guide</a>
+    <details class="menu">
+      <summary aria-label="More actions">&#x22EF;</summary>
+      <div>
+        <button type="button" id="reset">Reset to the sample deal</button>
+        <button type="button" id="print">Print the report</button>
+      </div>
+    </details>
+  </nav>
 </header>
 
 <main class="layout">
 <form id="deal" class="inputs" novalidate autocomplete="off">
-  <p class="start">Start with the <b>highlighted fields</b>: zip code, price and rent. Everything else has a sensible default you can refine. New to the terms? Tap any <span class="info" aria-hidden="true">i</span> or read the <a href="/guide" target="_blank" rel="noopener">investor guide</a>.</p>
+  <p class="start">Enter the <b>zip, price and rent</b> for a first answer; everything else has a default. Tap any <span class="info" aria-hidden="true">i</span> for what a term means.</p>
 
-  <h2 class="in-h">The basics<small>Enough for a first answer</small></h2>
-  <details class="sec" open>
-    <summary>Property</summary>
-    <div class="sec-body">
-      <div class="grid">
-        <label class="f wide"><span>Address (optional)</span><input data-p="property.address" data-t="str" maxlength="200"></label>
-        <label class="f key"><span>Zip code</span><input data-p="property.zip_code" data-t="str" inputmode="numeric" pattern="\d{5}" maxlength="5" required></label>
-        <label class="f"><span>Type</span>
-          <select data-p="property.property_type" id="ptype">
-            <option value="single_family">Single-family</option>
-            <option value="townhouse">Townhouse</option>
-            <option value="condo">Condo</option>
-            <option value="multi_2_4">Multifamily 2-4 units</option>
-            <option value="multi_5_plus">Multifamily 5+ units</option>
-          </select></label>
-        <label class="f"><span>Year built</span><input data-p="property.year_built" type="number" min="1700" max="2100" step="any" required></label>
-        <label class="f"><span>Living area (sqft, all units)</span><input data-p="property.sqft" type="number" min="101" step="any" required></label>
-        <label class="f"><span>HOA ($/mo) <label class="q"><input type="checkbox" data-known="hoa">quote</label></span><input data-p="property.hoa_monthly" type="number" min="0" step="any"></label>
-        <label class="f"><span>Units</span><input id="unitCount" type="number" min="1" max="500" step="any"></label>
-      </div>
-      <p class="hint" id="zipInfo" aria-live="polite"></p>
-      <table class="edit" id="units">
-        <thead><tr><th>Unit</th><th>Beds</th><th>Baths</th><th>Rent $/mo</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <p class="hint">Market rent after any rehab. Check leased comps, not asking rents.</p>
+  <section class="sheet" aria-label="The property">
+    <div class="grid">
+      <label class="f key"><span>Zip code</span><input data-p="property.zip_code" data-t="str" inputmode="numeric" pattern="\d{5}" maxlength="5" required></label>
+      <label class="f key"><span>Price / your offer ($)</span><input data-p="purchase.price" type="number" min="1" step="any" required></label>
+      <label class="f"><span>Type</span>
+        <select data-p="property.property_type" id="ptype">
+          <option value="single_family">Single-family</option>
+          <option value="townhouse">Townhouse</option>
+          <option value="condo">Condo</option>
+          <option value="multi_2_4">Multifamily 2-4 units</option>
+          <option value="multi_5_plus">Multifamily 5+ units</option>
+        </select></label>
+      <label class="f"><span>Units</span><input id="unitCount" type="number" min="1" max="500" step="any"></label>
+      <label class="f"><span>Year built</span><input data-p="property.year_built" type="number" min="1700" max="2100" step="any" required></label>
+      <label class="f"><span>Living area (sqft)</span><input data-p="property.sqft" type="number" min="101" step="any" required></label>
+      <label class="f"><span>HOA ($/mo) <label class="q"><input type="checkbox" data-known="hoa">quote</label></span><input data-p="property.hoa_monthly" type="number" min="0" step="any"></label>
+      <label class="f"><span>Address (optional)</span><input data-p="property.address" data-t="str" maxlength="200"></label>
     </div>
-  </details>
-  <details class="sec" open>
-    <summary>Purchase &amp; closing</summary>
+    <table class="edit" id="units">
+      <thead><tr><th>Unit</th><th>Beds</th><th>Baths</th><th class="key">Rent $/mo</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="hint">Rent: market rent after any rehab, from homes that actually leased nearby.</p>
+    <p class="hint" id="zipInfo" aria-live="polite"></p>
+  </section>
+
+  <h2 class="in-h">Assumptions <small>defaults filled in · open one to change it</small></h2>
+  <div class="rows">
+  <details class="sec" name="assume">
+    <summary>Purchase &amp; closing <small class="sum" data-sum="purchase"></small></summary>
     <div class="sec-body">
       <div class="grid">
-        <label class="f key"><span>Price / your offer ($)</span><input data-p="purchase.price" type="number" min="1" step="any" required></label>
         <label data-term="market-value" class="f"><span>Market value ($)</span><input data-p="purchase.market_value" type="number" min="1" step="any" placeholder="auto: zip $/sqft"></label>
         <label class="f"><span>Closing costs (%) <label class="q"><input type="checkbox" data-known="closing">quote</label></span><input data-p="purchase.closing_costs_pct" data-t="pct" type="number" min="0" step="any"></label>
         <label class="f"><span>Inspections ($) <label class="q"><input type="checkbox" data-known="inspection">quote</label></span><input data-p="purchase.inspection_costs" type="number" min="0" step="any" placeholder="auto"></label>
@@ -283,7 +335,7 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
           <option value="sellers">Seller's market: you pay most</option>
           <option value="as_is">As-is sale: you pay all</option>
         </select></label>
-        <label data-term="inspection-risk" class="check"><input type="checkbox" data-p="purchase.inspection_done"><span>Already inspected<small>Enter what it found under known repairs</small></span></label>
+        <label data-term="inspection-risk" class="check f wide"><input type="checkbox" data-p="purchase.inspection_done"><span>Already inspected<small>Enter what it found under known repairs</small></span></label>
       </div>
       <p class="hint">Closing: title, escrow, recording, transfer tax, attorney. Inspections: home, sewer scope, termite. Lender fees are under Financing.</p>
       <div>
@@ -296,8 +348,8 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       </div>
     </div>
   </details>
-  <details class="sec" open>
-    <summary>Financing</summary>
+  <details class="sec" name="assume">
+    <summary>Financing <small class="sum" data-sum="financing"></small></summary>
     <div class="sec-body">
       <div class="grid">
         <label data-term="loan-types" class="f"><span>Loan type</span>
@@ -326,8 +378,8 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Leave the rate blank and it's priced from the weekly market rate, your credit score, down payment and occupancy. A lender quote overrides it.</p>
     </div>
   </details>
-  <details class="sec">
-    <summary>Management <small id="mgmtLabel"></small></summary>
+  <details class="sec" name="assume">
+    <summary>Management <small class="sum" id="mgmtLabel"></small></summary>
     <div class="sec-body">
       <div class="seg" role="radiogroup" aria-label="Who manages">
         <label><input type="radio" name="mode" value="self" data-p="management.mode">Self-managed</label>
@@ -347,8 +399,8 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Results compare both ways. Value your time above $0 to make the comparison fair.</p>
     </div>
   </details>
-  <details class="sec">
-    <summary>Your buy box</summary>
+  <details class="sec" name="assume">
+    <summary>Your buy box <small class="sum" data-sum="box"></small></summary>
     <div class="sec-body">
       <div class="grid">
         <label data-term="margin-of-safety" class="f"><span>Margin of safety (%)</span><input data-p="targets.margin_of_safety_pct" data-t="pct" type="number" min="0" max="90" step="any"></label>
@@ -361,21 +413,30 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Max offer = highest price meeting every target, minus the margin of safety. Leave a target blank to switch it off.</p>
     </div>
   </details>
-  <h2 class="in-h">Fine-tune (optional)<small>Defaults are filled in; open any section to refine it</small></h2>
-  <details class="sec">
-    <summary>HOA <small>dues history &amp; reserves</small></summary>
+  <details class="sec" name="assume">
+    <summary>Income &amp; expenses <small class="sum" data-sum="ops"></small></summary>
     <div class="sec-body">
       <div class="grid">
-        <label class="f wide"><span>Past monthly dues, oldest first</span><input id="hoaHistory" placeholder="e.g. 310, 330, 355, 380"></label>
-        <label class="f"><span>Reserves funded (%)</span><input data-p="property.hoa_reserve_funded_pct" data-t="pct" type="number" min="0" step="any" placeholder="from reserve study"></label>
-        <label class="f"><span>Special assessment ($)</span><input data-p="property.hoa_special_assessment" type="number" min="0" step="any"></label>
-        <label class="f"><span>…due in year</span><input data-p="property.hoa_assessment_year" type="number" min="0" max="40" step="any"></label>
+        <label class="f"><span>Other income ($/mo)</span><input data-p="operations.other_income_monthly" type="number" min="0" step="any"></label>
+        <label data-term="gross-rent" class="f"><span>Vacancy (%)</span><input data-p="operations.vacancy_pct" data-t="pct" type="number" min="0" max="100" step="any" placeholder="auto"></label>
+        <label class="f"><span>Unpaid rent (%)</span><input data-p="operations.credit_loss_pct" data-t="pct" type="number" min="0" step="any"></label>
+        <label class="f"><span>Lease-up (months)</span><input data-p="operations.lease_up_months" type="number" min="0" max="12" step="any"></label>
+        <label class="f"><span>Avg tenant stay (yrs)</span><input data-p="operations.avg_tenancy_years" type="number" min="0.5" step="any" placeholder="auto"></label>
+        <label class="f"><span>Turnover cost ($/move-out)</span><input data-p="operations.turnover_cost" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Property tax ($/yr) <label class="q"><input type="checkbox" data-known="property_tax">quote</label></span><input data-p="operations.property_tax_annual" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>…or tax rate (% of price)</span><input data-p="operations.property_tax_rate" data-t="pct" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Insurance ($/yr) <label class="q"><input type="checkbox" data-known="insurance">quote</label></span><input data-p="operations.insurance_annual" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Flood insurance ($/yr)</span><input data-p="operations.flood_insurance_annual" type="number" min="0" step="any"></label>
+        <label class="f"><span>Owner-paid utilities ($/mo) <label class="q"><input type="checkbox" data-known="utilities">quote</label></span><input data-p="operations.utilities_monthly" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Other ($/yr) <label class="q"><input type="checkbox" data-known="other">quote</label></span><input data-p="operations.other_expenses_annual" type="number" min="0" step="any" placeholder="auto"></label>
+        <label class="f"><span>Rebuild cost ($/sqft)</span><input data-p="operations.replacement_cost_psf" type="number" min="1" step="any"></label>
+        <label data-term="upkeep" class="f wide"><span>Upkeep override (% of rebuild cost/yr)</span><input data-p="operations.upkeep_pct_override" data-t="pct" type="number" min="0" step="any" placeholder="auto: rises with the home's age"></label>
       </div>
-      <p class="hint">The dues history sets this HOA's own growth rate, fading to the long run (insurance + upkeep). Reserves under 30% funded usually mean a special assessment.</p>
+      <p class="hint">Property tax is reassessed at your price, not the seller's bill. Tick "quote" for figures you have in writing: estimates get the allowance in your buy box.</p>
     </div>
   </details>
-  <details class="sec">
-    <summary>Fixer-upper (distressed)</summary>
+  <details class="sec" name="assume">
+    <summary>Fixer-upper <small class="sum" data-sum="rehab"></small></summary>
     <div class="sec-body">
       <label data-term="brrrr" class="check"><input type="checkbox" id="rehabOn"><span>This property needs a rehab<small>Buy, renovate, rent, optionally refinance (BRRRR).</small></span></label>
       <div id="rehabFields" class="grid">
@@ -396,8 +457,20 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       </div>
     </div>
   </details>
-  <details class="sec">
-    <summary>Components <small>ages from the inspection</small></summary>
+  <details class="sec" name="assume">
+    <summary>HOA details <small class="sum" data-sum="hoa"></small></summary>
+    <div class="sec-body">
+      <div class="grid">
+        <label class="f wide"><span>Past monthly dues, oldest first</span><input id="hoaHistory" placeholder="e.g. 310, 330, 355, 380"></label>
+        <label class="f"><span>Reserves funded (%)</span><input data-p="property.hoa_reserve_funded_pct" data-t="pct" type="number" min="0" step="any" placeholder="from reserve study"></label>
+        <label class="f"><span>Special assessment ($)</span><input data-p="property.hoa_special_assessment" type="number" min="0" step="any"></label>
+        <label class="f"><span>…due in year</span><input data-p="property.hoa_assessment_year" type="number" min="0" max="40" step="any"></label>
+      </div>
+      <p class="hint">The dues history sets this HOA's own growth rate, fading to the long run (insurance + upkeep). Reserves under 30% funded usually mean a special assessment.</p>
+    </div>
+  </details>
+  <details class="sec" name="assume">
+    <summary>Components <small class="sum" data-sum="components"></small></summary>
     <div class="sec-body">
       <div class="grid">
         <label class="f"><span>Roof material</span>
@@ -416,37 +489,15 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Leave an age blank if unknown: the age-based upkeep covers it. A known age gets a real replacement date and cost (roof sized from footprint, pitch and material). Blank cost and life use typical 2026 figures, shown grey.</p>
     </div>
   </details>
-  <details class="sec">
-    <summary>Income &amp; expenses</summary>
-    <div class="sec-body">
-      <div class="grid">
-        <label class="f"><span>Other income ($/mo)</span><input data-p="operations.other_income_monthly" type="number" min="0" step="any"></label>
-        <label data-term="gross-rent" class="f"><span>Vacancy (%)</span><input data-p="operations.vacancy_pct" data-t="pct" type="number" min="0" max="100" step="any" placeholder="auto"></label>
-        <label class="f"><span>Unpaid rent (%)</span><input data-p="operations.credit_loss_pct" data-t="pct" type="number" min="0" step="any"></label>
-        <label class="f"><span>Lease-up (months)</span><input data-p="operations.lease_up_months" type="number" min="0" max="12" step="any"></label>
-        <label class="f"><span>Avg tenant stay (yrs)</span><input data-p="operations.avg_tenancy_years" type="number" min="0.5" step="any" placeholder="auto"></label>
-        <label class="f"><span>Turnover cost ($/move-out)</span><input data-p="operations.turnover_cost" type="number" min="0" step="any" placeholder="auto"></label>
-        <label class="f"><span>Property tax ($/yr) <label class="q"><input type="checkbox" data-known="property_tax">quote</label></span><input data-p="operations.property_tax_annual" type="number" min="0" step="any" placeholder="auto"></label>
-        <label class="f"><span>…or tax rate (% of price)</span><input data-p="operations.property_tax_rate" data-t="pct" type="number" min="0" step="any" placeholder="auto"></label>
-        <label class="f"><span>Insurance ($/yr) <label class="q"><input type="checkbox" data-known="insurance">quote</label></span><input data-p="operations.insurance_annual" type="number" min="0" step="any" placeholder="auto"></label>
-        <label class="f"><span>Flood insurance ($/yr)</span><input data-p="operations.flood_insurance_annual" type="number" min="0" step="any"></label>
-        <label class="f"><span>Owner-paid utilities ($/mo) <label class="q"><input type="checkbox" data-known="utilities">quote</label></span><input data-p="operations.utilities_monthly" type="number" min="0" step="any" placeholder="auto"></label>
-        <label class="f"><span>Other ($/yr) <label class="q"><input type="checkbox" data-known="other">quote</label></span><input data-p="operations.other_expenses_annual" type="number" min="0" step="any" placeholder="auto"></label>
-        <label class="f"><span>Rebuild cost ($/sqft)</span><input data-p="operations.replacement_cost_psf" type="number" min="1" step="any"></label>
-        <label data-term="upkeep" class="f wide"><span>Upkeep override (% of rebuild cost/yr)</span><input data-p="operations.upkeep_pct_override" data-t="pct" type="number" min="0" step="any" placeholder="auto: rises with the home's age"></label>
-      </div>
-      <p class="hint">Property tax is reassessed at your price, not the seller's bill. Tick "quote" for figures you have in writing: estimates get the allowance below.</p>
-    </div>
-  </details>
-  <details class="sec">
-    <summary>Regulatory checklist</summary>
+  <details class="sec" name="assume">
+    <summary>Regulatory checklist <small class="sum" data-sum="compliance"></small></summary>
     <div class="sec-body">
       <div id="complianceList"><p class="hint">Loading…</p></div>
       <p class="hint">Rules that usually apply to this property, with typical costs. Local rules vary: untick what doesn't apply.</p>
     </div>
   </details>
-  <details class="sec">
-    <summary>Growth &amp; inflation</summary>
+  <details class="sec" name="assume">
+    <summary>Growth &amp; inflation <small class="sum" data-sum="growth"></small></summary>
     <div class="sec-body">
       <div class="grid">
         <label class="f"><span>General inflation (CPI-U)</span><input data-p="growth.general_inflation" data-t="pct" type="number" step="any"></label>
@@ -461,8 +512,8 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">Annual %, long-run. Each line grows with its own index: rent with CPI rent (~3.3%/yr since 1990), insurance faster than CPI, repairs with construction labor.</p>
     </div>
   </details>
-  <details class="sec">
-    <summary>Your tax situation</summary>
+  <details class="sec" name="assume">
+    <summary>Your tax situation <small class="sum" data-sum="tax"></small></summary>
     <div class="sec-body">
       <div class="grid">
         <label class="f"><span>Filing status</span>
@@ -480,8 +531,8 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       <p class="hint">2026 federal brackets. Estimates only, not tax advice.</p>
     </div>
   </details>
-  <details class="sec">
-    <summary>Hold &amp; exit</summary>
+  <details class="sec" name="assume">
+    <summary>Hold &amp; exit <small class="sum" data-sum="exit"></small></summary>
     <div class="sec-body">
       <div class="grid">
         <label class="f"><span>Hold (years)</span><input data-p="exit.hold_years" type="number" min="1" max="40" step="any"></label>
@@ -489,6 +540,7 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--fiel
       </div>
     </div>
   </details>
+  </div>
 </form>
 
 <section id="results" class="results" aria-live="polite" aria-busy="true">
@@ -649,6 +701,7 @@ function renderCompliance(rows) {
     const cost = [c.one_time ? `${money(c.one_time)} at purchase` : null, c.annual ? `${money(c.annual)}/yr` : null].filter(Boolean).join(" + ");
     return h("label", { class: "check comp-item" }, cb, h("span", null, c.label, h("small", null, `${cost}. ${c.note}`)));
   }));
+  $("[data-sum=compliance]").textContent = SUMS.compliance();
 }
 
 function fill(deal) {
@@ -714,7 +767,34 @@ function sync() {
   count.min = lo; count.max = hi; count.disabled = lo === hi;
   const n = Math.min(hi, Math.max(lo, Math.round(+count.value || lo)));
   if (n !== $$("#units tbody tr").length) resizeUnits(n);
+  for (const el of $$("[data-sum]", form)) el.textContent = SUMS[el.dataset.sum]();
 }
+
+// what each closed assumption row says about itself, so the defaults are visible without opening it
+const fv = p => $(`[data-p='${p}']`, form).value.trim();
+const or = (p, f, d = "auto") => fv(p) === "" ? d : f(fv(p));
+const opt = p => { const el = $(`[data-p='${p}']`, form); return el.options[el.selectedIndex]?.text ?? ""; };
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const SUMS = {
+  purchase: () => [or("purchase.market_value", v => `value ${money(+v)}`, "value from zip"), `closing ${fv("purchase.closing_costs_pct") || 0}%`,
+    readRepairs().length ? plural(readRepairs().length, "repair") : null].filter(Boolean).join(" · "),
+  financing: () => $("#allCash").checked ? "all cash" : [opt("loan.type").replace(/ \(.*/, ""), `${fv("loan.down_payment_pct") || 0}% down`,
+    or("loan.rate", v => `${v}% quote`, `score ${fv("loan.credit_score") || "auto"}`)].join(" · "),
+  box: () => {
+    const n = ["min_cash_on_cash", "min_monthly_cash_flow_per_unit", "min_dscr", "min_irr"].filter(k => fv(`targets.${k}`) !== "").length;
+    return `${fv("targets.margin_of_safety_pct") || 0}% margin · ${n ? plural(n, "target") : "no targets"}`;
+  },
+  ops: () => [`vacancy ${or("operations.vacancy_pct", v => `${v}%`)}`, `tax ${or("operations.property_tax_annual", v => money(+v))}`,
+    `insurance ${or("operations.insurance_annual", v => money(+v))}`].join(" · "),
+  rehab: () => $("#rehabOn").checked ? `${money(+fv("rehab.budget") || 0)} rehab${$("#refiOn").checked ? " + refi" : ""}` : "off",
+  hoa: () => +fv("property.hoa_monthly") > 0 ? [`${money(+fv("property.hoa_monthly"))}/mo`, readHistory().length ? "history" : null,
+    +fv("property.hoa_special_assessment") > 0 ? "assessment" : null].filter(Boolean).join(" · ") : "no HOA",
+  components: () => { const n = readComponents().length; return n ? `${plural(n, "age")} known` : "ages unknown"; },
+  compliance: () => { const c = $$("[data-compliance]", form); return c.length ? `${c.filter(x => x.checked).length} of ${c.length} apply` : ""; },
+  growth: () => `rent ${fv("growth.rent")}% · value ${or("growth.appreciation", v => `${v}%`, "zip trend")}`,
+  tax: () => `${opt("tax.filing_status")} · ${money(+fv("tax.household_income") || 0)}`,
+  exit: () => `${fv("exit.hold_years")} yrs · selling ${fv("exit.selling_cost_pct")}%`,
+};
 
 // ---------- evaluate ----------
 let seq = 0, timer = null;
@@ -777,62 +857,108 @@ const TERM_OF = {
   "Normal-year pro forma": "noi",
 };
 const tile = (label, value, sub, state) => h("div", { class: `tile${state ? " " + state : ""}` }, h("div", { class: "label" }, label, info(TERM_OF[label])), h("div", { class: "value" }, value), sub ? h("div", { class: "sub" }, sub) : null);
-const status = ok => h("span", { class: `status ${ok ? "ok" : "no"}` }, h("i", { "aria-hidden": "true" }, ok ? "✓" : "✕"), ok ? "meets" : "misses");
+const mini = (label, value, sub) => h("div", null, h("dt", null, label, info(TERM_OF[label])), h("dd", null, value, sub ? h("small", null, ` ${sub}`) : null));
+const mark = (ok, text) => h("span", { class: `status ${ok ? "ok" : "no"}` }, h("i", { role: "img", "aria-label": ok ? "meets" : "misses" }, ok ? "✓" : "✕"),
+  h("span", { class: ok ? "ok-text" : "bad-text" }, text));
+// a card whose body stays closed until asked for: the one-line summary is what most people need
+function fold(title, sum, ...kids) {
+  return h("details", { class: "card fold" }, h("summary", null, h("h3", null, title, info(TERM_OF[title])),
+    sum ? h("span", { class: "sum" }, sum) : null), ...kids);
+}
+const more = (label, ...kids) => h("details", { class: "more" }, h("summary", null, label), ...kids);
+function split(...kids) {
+  kids = kids.filter(Boolean);
+  return kids.length > 1 ? h("div", { class: "split" }, kids) : kids[0] || null;
+}
+
+const VERDICT = { buy: ["BUY", "✓"], negotiate: ["NEGOTIATE", "↔"], pass: ["PASS", "✕"] };
+const pillKids = o => [h("i", { "aria-hidden": "true" }, VERDICT[o.verdict][1]), VERDICT[o.verdict][0], info("verdict")];
+function heroKids(o) {
+  const none = o.max_offer == null;
+  return [h("div", { class: "label" }, "Max offer", info("max-offer")),
+    h("div", { class: `big${none ? " words" : ""}` }, none ? "No price works" : money(o.max_offer)),
+    none ? null : o.price > o.max_offer
+      ? h("p", { class: "gap" }, `Your price is ${money(o.price - o.max_offer)} above it.`)
+      : h("p", { class: "gap ok" }, `Your price is ${money(o.max_offer - o.price)} below it.`)];
+}
 
 function verdictCard(r) {
-  const o = r.offer, label = { buy: "BUY", negotiate: "NEGOTIATE", pass: "PASS" }[o.verdict];
-  const icon = { buy: "✓", negotiate: "↔", pass: "✕" }[o.verdict];
-  const isRehab = o.rule_70 != null;
+  const o = r.offer, isRehab = o.rule_70 != null, mos = Math.round(o.margin_of_safety_pct * 100);
+  const range = h("input", { type: "range", id: "mos", min: 0, max: Math.max(30, mos), step: 1, value: mos,
+    "aria-label": "Margin of safety", "aria-valuetext": `${mos}%` });
   return h("section", { class: `card verdict ${o.verdict}` },
     h("div", { class: "verdict-top" },
-      h("span", { class: `pill ${o.verdict}` }, h("i", { "aria-hidden": "true" }, icon), label, info("verdict")),
+      h("span", { class: "pill" }, pillKids(o)),
       h("p", { class: "summary" }, o.summary)),
-    h("div", { class: "hero" },
-      h("div", null, h("div", { class: "label" }, `Max offer (${pct(o.margin_of_safety_pct, 0)} margin of safety)`, info("max-offer")),
-        h("div", { class: "big" }, o.max_offer == null ? "No price works" : money(o.max_offer))),
-      h("div", null, h("div", { class: "label" }, "Highest price meeting your targets", info("investment-value")),
-        h("div", { class: "mid" }, o.investment_value != null ? money(o.investment_value)
-          : o.targets.length ? "No price works" : "No targets set")),
-      h("div", null, h("div", { class: "label" }, isRehab ? "After-repair value" : "Market value", info(isRehab ? "arv" : "market-value")),
-        h("div", { class: "mid" }, money(o.market_value)))),
-    o.max_offer == null ? null : o.price > o.max_offer
-      ? h("p", { class: "gap" }, `Your price is ${money(o.price - o.max_offer)} above the max offer.`)
-      : h("p", { class: "gap ok" }, `Your price is ${money(o.max_offer - o.price)} below the max offer.`),
+    h("div", { class: "vgrid" },
+      h("div", null, h("div", { class: "hero" }, heroKids(o)),
+        h("label", { class: "mos" }, h("span", null, "Margin of safety", info("margin-of-safety")), range, h("b", { id: "mosOut" }, `${mos}%`))),
+      h("div", { class: "ladder", id: "ladder", role: "img" })),
+    // the ladder's numbers as text (and their definitions)
     h("div", { class: "facts" },
-      h("span", null, "Price ", h("b", null, money(o.price))),
+      h("span", null, "Your price ", h("b", null, money(o.price))),
+      h("span", null, "Highest price meeting your targets", info("investment-value"), " ",
+        h("b", null, o.investment_value != null ? money(o.investment_value) : o.targets.length ? "none" : "no targets set")),
+      h("span", null, isRehab ? "After-repair value" : "Market value", info(isRehab ? "arv" : "market-value"), " ", h("b", null, money(o.market_value))),
       h("span", null, "Limited by ", h("b", null, o.limited_by)),
-      o.margin_at_price != null ? h("span", null, "Margin at this price ", h("b", null, pct(o.margin_at_price, 0))) : null,
+      o.margin_at_price != null ? h("span", null, "Margin at your price ", h("b", null, pct(o.margin_at_price, 0))) : null,
       isRehab ? h("span", null, "70% rule ", h("b", null, money(o.rule_70))) : null));
 }
+
+// Margin of safety slider. The margin only moves the max offer and the verdict (the price your
+// targets support doesn't depend on it), so dragging updates those here, the same way the model
+// does (metrics/returns.py), and letting go re-runs the model for the rest.
+function previewMargin(mos) {
+  const o = { ...LAST.offer, margin_of_safety_pct: mos };
+  if (o.max_offer != null && o.walk_away != null) {
+    o.max_offer = Math.min((o.investment_value ?? o.walk_away) * (1 - mos), o.walk_away);
+    o.verdict = o.price <= o.max_offer + 0.5 ? "buy" : o.price <= o.walk_away ? "negotiate" : "pass";
+  }
+  const v = $(".verdict", out);
+  v.className = `card verdict ${o.verdict}`;
+  $(".pill", v).replaceChildren(...pillKids(o));
+  $(".hero", v).replaceChildren(...heroKids(o).filter(Boolean));
+  $("#mosOut").textContent = `${Math.round(mos * 100)}%`;
+  $("#mos").setAttribute("aria-valuetext", `${Math.round(mos * 100)}%`);
+  drawLadder({ ...LAST, offer: o });
+}
+out.addEventListener("input", e => { if (e.target.id === "mos") previewMargin(+e.target.value / 100); });
+out.addEventListener("change", e => {
+  if (e.target.id !== "mos") return;
+  $("[data-p='targets.margin_of_safety_pct']", form).value = e.target.value;
+  sync(); run();
+});
 
 function targetsCard(o) {
   if (!o.targets.length) return null;
   const fmt = (name, v) => v == null ? "∞" : name.includes("cash flow") ? money(v) : name === "DSCR" ? times(v) : pct(v);
-  return card("Your targets", "highest price that still meets each one",
-    table(["Target", "Minimum", "At this price", "", "Max price"],
+  const met = o.targets.filter(t => t.passed).length;
+  return card("Your targets", `${met} of ${o.targets.length} met at your price`,
+    table(["Target", "Minimum", "At your price", "Max price"],
       o.targets.map(t => ({ cls: t.passed ? null : "miss", cells: [h("span", null, t.name, info(TERM_OF[t.name])), fmt(t.name, t.threshold),
-        h("span", { class: t.passed ? "ok-text" : "bad-text" }, fmt(t.name, t.value)), status(t.passed),
-        t.max_price == null ? "none" : money(t.max_price)] }))));
+        mark(t.passed, fmt(t.name, t.value)), t.max_price == null ? "none" : money(t.max_price)] }))),
+    h("p", { class: "note" }, "Max price: the highest price that still meets that target. The lowest one sets the max offer."));
 }
 
 function kpiCard(r) {
-  const m = r.metrics, a = r.acquisition, s = r.stabilized;
+  const m = r.metrics, a = r.acquisition;
   // green / red only where you set a target; everything else stays neutral
   const vs = name => { const t = r.offer.targets.find(x => x.name === name); return t ? (t.passed ? "good" : "bad") : null; };
-  return card("Normal year", "after lease-up / rehab, before tax · green meets your target, red misses it",
-    h("div", { class: "kpis" },
+  return card("Normal year", "after lease-up and rehab, before tax · green meets your target, red misses it",
+    h("div", { class: "kpis six" },
       tile("Cash flow", `${money(m.monthly_cash_flow)}/mo`, m.monthly_cash_flow_per_unit !== m.monthly_cash_flow ? `${money(m.monthly_cash_flow_per_unit)}/unit` : `${money(m.monthly_cash_flow * 12)}/yr`,
         m.monthly_cash_flow < 0 ? "bad" : vs("Monthly cash flow per unit")),
       tile("Cash-on-cash", m.cash_on_cash == null ? "∞" : pct(m.cash_on_cash), `on ${money(m.cash_left_in_deal)} in the deal`, vs("Cash-on-cash")),
       tile("Cap rate", pct(m.cap_rate), `${pct(m.cap_rate_on_cost)} on all-in cost`),
       tile("DSCR", m.dscr == null ? "no loan" : times(m.dscr), "lenders want 1.2x+", m.dscr == null ? null : vs("DSCR")),
       tile("After-tax IRR", pct(m.irr_after_tax), `${pct(m.irr_before_tax)} before tax`, vs("After-tax IRR")),
-      tile("Equity multiple", times(m.equity_multiple), `over ${r.years.length} yrs, after tax`),
-      tile("Cash to close", money(a.total_cash_needed), a.lender_reserves ? `+ ${money(a.lender_reserves)} reserves` : "all cash"),
-      tile("Break-even occupancy", pct(m.break_even_occupancy, 0), "to cover costs + mortgage"),
-      tile("Rent / price", pct(m.rent_to_price, 2), `GRM ${m.gross_rent_multiplier.toFixed(1)}`),
-      tile("Upkeep", `${pct(m.upkeep_pct_of_rent, 0)} of rent`, `${pct(m.upkeep_pct_of_value)} of value/yr`),
-      m.house_hack_monthly == null ? null : tile("While you live there", `${money(m.house_hack_monthly)}/mo`, "net of rent from the other units, before the rent you save")));
+      tile("Cash to close", money(a.total_cash_needed), a.lender_reserves ? `+ ${money(a.lender_reserves)} reserves` : "all cash")),
+    h("dl", { class: "minis" },
+      mini("Equity multiple", times(m.equity_multiple), `over ${r.years.length} yrs`),
+      mini("Break-even occupancy", pct(m.break_even_occupancy, 0)),
+      mini("Rent / price", pct(m.rent_to_price, 2), `GRM ${m.gross_rent_multiplier.toFixed(1)}`),
+      mini("Upkeep", `${pct(m.upkeep_pct_of_rent, 0)} of rent`),
+      m.house_hack_monthly == null ? null : mini("While you live there", `${money(m.house_hack_monthly)}/mo`, "before the rent you save")));
 }
 
 function compareCard(list) {
@@ -850,7 +976,7 @@ function financeCard(r) {
   const rows = f.rate_steps.map(st => ({ cells: [st.label, st.value] }));
   rows.push({ cls: "total", cells: ["Rate used", pct(f.rate, 3)] });
   if (f.mortgage_insurance) rows.push({ cells: [f.mortgage_insurance_note, `${pct(f.mortgage_insurance, 2)}/yr`] });
-  return card("Your loan", `${f.loan_type} · market rate as of ${f.base_as_of}`, table(["", ""], rows),
+  return card("Your loan", `${f.loan_type} · market rate as of ${f.base_as_of}`, table(["How the rate is built", ""], rows),
     h("p", { class: "note" }, f.notes.join(" ")));
 }
 
@@ -879,19 +1005,22 @@ function holdCard(r) {
       money(e.value), money(e.loan_balance), money(e.profit_if_sold), pct(e.irr_if_sold), times(e.multiple_if_sold), money(e.wealth_if_kept)]
       .map((v, i) => h("td", { class: (i === 3 && e.profit_if_sold < 0) || (i === 6 && e.wealth_if_kept < 0) ? "neg" : null }, v))));
   const last = tl.at(-1);
-  return card("Sell or keep?", `every year until the loan is paid off (year ${last.year})`,
+  return card("Sell or keep?", `every year until the loan is paid off (year ${last.year})${best ? ` · best IRR if sold in year ${best.year}: ${pct(best.irr_if_sold)}` : ""}`,
     h("div", { class: "legend" },
       h("span", null, h("i", { class: "key", style: "background: var(--s1)" }), "Profit if you sell that year (after tax)"),
       h("span", null, h("i", { class: "key", style: "background: var(--s2)" }), "Wealth if you keep it")),
     h("div", { class: "chart", id: "holdChart" }),
-    h("div", { class: "tbl-wrap scroll" }, h("table", { class: "data" },
+    more("Show the table, year by year", h("div", { class: "tbl-wrap scroll" }, h("table", { class: "data" },
       h("thead", null, h("tr", null, ["Year", "Value", "Loan", "Profit if sold", "IRR if sold", "Multiple", "Wealth if kept"].map(c => h("th", { scope: "col" }, c)))),
-      h("tbody", null, rows))),
-    h("p", { class: "note" }, `Profit if sold: after selling costs, recapture and capital-gains tax, net of the cash you put in. Wealth if kept: equity plus after-tax cash collected, minus your cash in, with no sale; heirs get a stepped-up basis, so that gain may never be taxed.${best ? ` Highest IRR if sold in year ${best.year}: ${pct(best.irr_if_sold)}.` : ""}`));
+      h("tbody", null, rows)))),
+    h("p", { class: "note" }, "Profit if sold: after selling costs, recapture and capital-gains tax, net of the cash you put in. Wealth if kept: equity plus after-tax cash collected, minus your cash in, with no sale; heirs get a stepped-up basis, so that gain may never be taxed."));
 }
 
 function componentsCard(rows) {
-  return card("Components", "known ages get real replacement dates",
+  const dated = rows.filter(c => c.age != null).sort((a, b) => a.next_replacement_year - b.next_replacement_year);
+  const next = dated[0];
+  return fold("Components", next ? `next replacement: ${next.name.toLowerCase()} ${next.next_replacement_year === 0 ? "now" : `in year ${next.next_replacement_year}`}`
+      : "ages unknown: covered by the age-based upkeep",
     table(["", "Age", "Life", "Next replacement", "Cost today"], rows.map(c => ({ cells: [
       c.name, c.age == null ? "unknown" : `${c.age} yrs`, `${c.life} yrs`,
       c.age == null ? "in the age-based upkeep" : c.next_replacement_year === 0 ? "now (at purchase)" : `year ${c.next_replacement_year}`,
@@ -906,12 +1035,20 @@ function cashCard(a) {
     ["Regulatory compliance", a.compliance_costs], ["Inspection surprises (expected, your share)", a.inspection_risk],
   ].filter(([, v]) => Math.abs(v) > 0.5).map(([k, v]) => ({ cells: [k, v] }));
   rows.push({ cls: "total", cells: ["Cash to close", a.total_cash_needed] });
-  return card("Cash to close", a.loan_amount ? `loan ${money(a.loan_amount)}` : "all cash",
-    table(["", ""], rows),
+  // three groups, one bar: what the cash is for at a glance; the table has every line
+  const parts = [["Down payment", a.down_payment, "var(--s1)"], ["Closing & lender fees", a.closing_costs + a.lender_costs, "var(--s2)"],
+    ["Repairs, rehab & other", a.inspections + a.other_costs + a.rehab + a.repairs_at_purchase + a.compliance_costs + a.inspection_risk, "var(--s3)"]]
+    .filter(([, v]) => v > 0.5);
+  return card("Cash to close", `${money(a.total_cash_needed)}${a.loan_amount ? ` · loan ${money(a.loan_amount)}` : " · all cash"}`,
+    h("div", { class: "cashbar", role: "img", "aria-label": parts.map(([k, v]) => `${k} ${money(v)}`).join(", ") },
+      parts.map(([k, v, c]) => h("i", { style: `flex: ${v} 1 0; background: ${c}`, title: `${k}: ${money(v)}` }))),
+    h("div", { class: "legend" }, parts.map(([k, v, c]) => h("span", null, h("i", { class: "sw", style: `background: ${c}` }), `${k} ${money(v)}`)),
+      a.seller_credits > 0.5 ? h("span", null, `minus ${money(a.seller_credits)} seller credits`) : null),
+    more("Show every line", table(["", ""], rows)),
     a.lender_reserves ? h("p", { class: "note" }, `Keep about ${money(a.lender_reserves)} (6 months of payments, taxes, insurance) in reserve. Lenders usually require it for investment loans.`) : null);
 }
 
-function proformaCard(s, r) {
+function proformaCard(s) {
   const lines = [
     ["Gross rent", s.gross_rent], ["Other income", s.other_income], ["Vacancy & unpaid rent", -s.vacancy_loss],
     ["Effective income", s.egi, "total"], ["Property tax", -s.property_tax], ["Insurance", -s.insurance], ["HOA", -s.hoa],
@@ -920,15 +1057,17 @@ function proformaCard(s, r) {
     ["Your time", -s.owner_time],
     ["Net operating income", s.noi, "total"], ["Mortgage (P&I + PMI)", -s.debt_service], ["Cash flow", s.cash_flow, "total"],
   ].filter(([, v, c]) => c || Math.abs(v) > 0.5);
-  return card("Normal-year pro forma", "estimated lines include the allowance",
+  return fold("Normal-year pro forma", `NOI ${money(s.noi)}/yr · cash flow ${money(s.cash_flow)}/yr`,
     table(["", "Monthly", "Annual", "% of rent"], lines.map(([k, v, c]) => ({
-      cls: c, cells: [k, v / 12, v, s.gross_rent ? pct(Math.abs(v) / s.gross_rent, 0) : "—"] }))));
+      cls: c, cells: [k, v / 12, v, s.gross_rent ? pct(Math.abs(v) / s.gross_rent, 0) : "—"] }))),
+    h("p", { class: "note" }, "Estimated lines include the estimate allowance."));
 }
 
 function yearsCard(years) {
-  return card("Year by year", "taxes: negative = savings",
+  return fold("Year by year", `${years.length} years of rent, costs, tax and equity`,
     table(["Year", "Rent", "NOI", "Mortgage", "Cash flow", "Tax", "After tax", "Value", "Loan", "Equity"],
-      years.map(y => ({ cells: [String(y.year), y.gross_rent, y.noi, y.debt_service, y.cash_flow, y.tax, y.cash_flow_after_tax, y.value, y.loan_balance, y.equity] })), { red: true }));
+      years.map(y => ({ cells: [String(y.year), y.gross_rent, y.noi, y.debt_service, y.cash_flow, y.tax, y.cash_flow_after_tax, y.value, y.loan_balance, y.equity] })), { red: true }),
+    h("p", { class: "note" }, "Tax: negative means savings (depreciation and losses against other income)."));
 }
 
 function saleCard(x) {
@@ -939,17 +1078,19 @@ function saleCard(x) {
     ["Suspended losses released", x.suspended_losses_released], ["Tax on sale", -x.tax],
     ["Proceeds after tax", x.proceeds_after_tax, "total"], ["Tax deferred by 1031", x.deferred_tax],
   ].filter(([, v, c]) => c || Math.abs(v) > 0.5);
-  return card(`Sale in year ${x.year}`, null, table(["", ""], rows.map(([k, v, c]) => ({ cls: c, cells: [k, v] }))));
+  return fold(`Sale in year ${x.year}`, `${money(x.price)} sale · ${money(x.proceeds_after_tax)} to you after tax`,
+    table(["", ""], rows.map(([k, v, c]) => ({ cls: c, cells: [k, v] }))));
 }
 
 function stressCard(list) {
-  return card("Stress tests", "one thing goes wrong at a time",
-    table(["Scenario", "Cash flow/mo", "Cash-on-cash", "After-tax IRR"],
-      list.map(sc => ({ cells: [sc.name, sc.monthly_cash_flow, sc.cash_on_cash == null ? "∞" : pct(sc.cash_on_cash), pct(sc.irr_after_tax)] })), { red: true }));
+  return card("Stress tests", "monthly cash flow when one thing goes wrong at a time",
+    h("div", { class: "chart", id: "stressChart" }),
+    more("Show the table with cash-on-cash and IRR", table(["Scenario", "Cash flow/mo", "Cash-on-cash", "After-tax IRR"],
+      list.map(sc => ({ cells: [sc.name, sc.monthly_cash_flow, sc.cash_on_cash == null ? "∞" : pct(sc.cash_on_cash), pct(sc.irr_after_tax)] })), { red: true })));
 }
 
 function assumptionsCard(list) {
-  return card("What the model assumed", "blank inputs are derived; every one has a source",
+  return fold("What the model assumed", `${list.length} inputs derived for you, each with its source`,
     table(["", "Value", "Source"], list.map(a => ({ cells: [a.label, a.value, a.source] })), { cls: [null, null, "src"] }));
 }
 
@@ -963,14 +1104,16 @@ function marketCard(m) {
   ];
   for (const [b, rent] of Object.entries(m.rent_by_beds || {})) rows.push([`Census median gross rent, ${b} bed`, money(rent)]);
   if (m.tax_rate) rows.push(["Census effective tax rate", pct(m.tax_rate, 2)]);
-  return card(`Zip ${m.zip}`, `${m.city}, ${m.state} · ${m.metro}`,
+  return fold(`Zip ${m.zip}`, `${m.city}, ${m.state} · ${m.metro}`,
     table(["", ""], rows.map(([k, v]) => ({ cells: [k, String(v)] }))),
     h("p", { class: "note" }, `Sources: ${m.sources.join("; ")}. ${m.as_of}. Long-run trends only: short-term swings are ignored.`));
 }
 
 function warningsCard(list) {
   if (!list.length) return null;
-  const c = card("Watch out", `${list.length} thing${list.length > 1 ? "s" : ""} to check`, h("ul", { class: "warnings" }, list.map(w => h("li", null, w))));
+  const li = w => h("li", null, w);
+  const c = card("Watch out", `${list.length} thing${list.length > 1 ? "s" : ""} to check`, h("ul", { class: "warnings" }, list.slice(0, 3).map(li)),
+    list.length > 3 ? more(`Show ${list.length - 3} more`, h("ul", { class: "warnings" }, list.slice(3).map(li))) : null);
   c.classList.add("alert");
   return c;
 }
@@ -986,10 +1129,10 @@ function inspectionCard(x) {
   rows.push({ cls: "total", cells: ["Expected cost to you", "", money(x.expected_cost), money(x.expected_to_you)] });
   return card("Inspection risk", "what an inspection may find, and who pays",
     h("div", { class: "kpis" },
-      tile("Chance of a major finding", pct(x.p_any, 0), "at least one item below", x.p_any >= 0.25 ? "warn" : null),
+      tile("Chance of a major finding", pct(x.p_any, 0), "at least one typical finding", x.p_any >= 0.25 ? "warn" : null),
       tile("Your share if it does", pct(x.buyer_share, 0), `${x.market}: ${x.basis}`),
       tile("Expected cost to you", money(x.expected_to_you), `costliest single finding: ${money(x.bad_case)}`)),
-    table(["Finding", "Chance", "Typical cost", "Expected, your share"], rows, { cls: ["wrap"] }),
+    more(`Show the ${x.rows.length} typical findings`, table(["Finding", "Chance", "Typical cost", "Expected, your share"], rows, { cls: ["wrap"] })),
     h("p", { class: "note" }, "Added to your cash at purchase (with the estimate allowance), so it lowers the max offer. In a buyer's market the seller usually repairs or credits most of it; as-is and bank-owned sales leave it all with you. Once inspected, tick Already inspected and enter what it found."));
 }
 
@@ -1008,11 +1151,11 @@ function breakdownCard(b) {
 
 // Results tabs: one plain question each, so people open only what they want to see.
 const TABS = [
-  ["overview", "Should I buy it?", "Warnings, targets, key numbers"],
-  ["returns", "What will I earn?", "Cash flow, profit, sell or keep"],
-  ["money", "How do I pay for it?", "Loan, cash to close, down payment"],
-  ["risks", "What could go wrong?", "Inspection, stress tests, costs"],
-  ["details", "Every number", "Year by year, sale, assumptions"],
+  ["overview", "Should I buy it?", "Key numbers, targets, warnings"],
+  ["returns", "What will I earn?", "Profit sources, sell or keep, equity"],
+  ["money", "How do I pay for it?", "Cash to close, loan, down payment"],
+  ["risks", "What could go wrong?", "Stress tests, inspection, components"],
+  ["details", "Every number", "Pro forma, year by year, sale, assumptions"],
 ];
 const TAB_KEY = "deal-evaluator:tab";
 let TAB = "overview";
@@ -1052,20 +1195,20 @@ function render(r) {
   }
   renderCompliance(r.compliance);
   const panels = {
-    overview: [warningsCard(r.warnings), targetsCard(r.offer), kpiCard(r)],
-    returns: [compareCard(r.management), holdCard(r), h("div", { class: "split" }, equityCard(r), breakdownCard(r.returns))],
-    money: [h("div", { class: "split" }, financeCard(r), cashCard(r.acquisition)), dpCard(r)],
-    risks: [inspectionCard(r.inspection), h("div", { class: "split" }, proformaCard(r.stabilized, r), stressCard(r.stress)),
-      componentsCard(r.components)],
-    details: [yearsCard(r.years), h("div", { class: "split" }, saleCard(r.sale), marketCard(r.market)), assumptionsCard(r.assumptions)],
+    overview: [kpiCard(r), split(targetsCard(r.offer), warningsCard(r.warnings))],
+    returns: [split(breakdownCard(r.returns), compareCard(r.management)), holdCard(r), equityCard(r)],
+    money: [split(cashCard(r.acquisition), financeCard(r)), dpCard(r)],
+    risks: [stressCard(r.stress), inspectionCard(r.inspection), componentsCard(r.components)],
+    details: [proformaCard(r.stabilized), yearsCard(r.years), saleCard(r.sale), marketCard(r.market), assumptionsCard(r.assumptions)],
   };
   const tabs = h("div", { class: "tabs", role: "tablist", "aria-label": "Results" }, TABS.map(([k, title, sub]) =>
-    h("button", { type: "button", class: "tab", role: "tab", id: `tab-${k}`, "aria-controls": `panel-${k}`,
+    h("button", { type: "button", class: "tab", role: "tab", id: `tab-${k}`, "aria-controls": `panel-${k}`, title: sub,
       "aria-selected": String(k === TAB), tabindex: k === TAB ? "0" : "-1", "data-tab": k },
-      h("b", null, title, k === "overview" && r.warnings.length ? h("span", { class: "count", "aria-label": `${r.warnings.length} warnings` }, r.warnings.length) : null),
-      h("small", null, sub))));
+      title, k === "overview" && r.warnings.length ? h("span", { class: "count", "aria-label": `${r.warnings.length} warnings` }, r.warnings.length) : null)));
+  const refocus = document.activeElement?.id === "mos";   // keyboard steps re-run the model
   out.replaceChildren(verdictCard(r), tabs, ...TABS.map(([k]) => h("div", { class: "panel", role: "tabpanel",
     id: `panel-${k}`, "aria-labelledby": `tab-${k}`, hidden: k !== TAB }, ...panels[k].filter(Boolean))));
+  if (refocus) $("#mos").focus();
   drawCharts();
 }
 
@@ -1108,7 +1251,7 @@ function drawLines(box, xs, series, opts = {}) {
   }
   svg.append(s("line", { x1: m.l, x2: W - m.r, y1: y(0), y2: y(0), class: "baseline" }));
   const step = Math.ceil(xs.length / 8);
-  xs.forEach((yr, i) => { if (i % step === 0 || i === xs.length - 1) svg.append(s("text", { x: x(i), y: H - 6, "text-anchor": "middle" }, `Yr ${yr}`)); });
+  xs.forEach((yr, i) => { if ((i % step === 0 && xs.length - 1 - i >= step / 2) || i === xs.length - 1) svg.append(s("text", { x: x(i), y: H - 6, "text-anchor": "middle" }, `Yr ${yr}`)); });
   const path = arr => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
   if (opts.fillBetween && series.length > 1) {
     const [a, b] = series;
@@ -1166,13 +1309,9 @@ function drawHold(r) {
     label: `If sold, after-tax profit goes from ${money(sold[0])} in year 1 to ${money(sold.at(-1))} in year ${tl.length}; kept, wealth reaches ${money(kept.at(-1))}.` });
 }
 
-function drawProfit(r) {
-  const box = $("#profitChart");
+// horizontal bars around zero: positive in the series color, negative in red
+function drawBars(box, items, what, fmt = usdC.format) {
   if (!box) return;
-  const b = r.returns;
-  const items = [["Operating cash flow", b.operating_cash_flow], ["Loan paydown", b.principal_paydown],
-    ["Appreciation", b.appreciation], ["Bought below value", b.equity_at_purchase],
-    ["Transaction costs", b.transaction_costs], ["Taxes", b.taxes]];
   const W = Math.max(280, box.clientWidth), row = 30, labelW = Math.min(150, W * 0.38), m = { t: 6, b: 6, r: 8 };
   const H = m.t + m.b + row * items.length;
   const lo = Math.min(0, ...items.map(i => i[1])), hi = Math.max(0, ...items.map(i => i[1]));
@@ -1192,17 +1331,67 @@ function drawProfit(r) {
     const bar = s("path", { d: w > 0.5 ? d : `M${x0},${top}h0.5v${bh}h-0.5Z`, fill: v >= 0 ? "var(--s1)" : "var(--neg)", class: "bar", tabindex: 0,
       "aria-label": `${label}: ${money(v)}` });
     const hot = s("rect", { x: Math.min(x0, x1) - 4, y: cy - row / 2, width: w + 8, height: row, fill: "transparent" });
-    const showIt = () => showTip(box, tip, Math.max(x0, x1), cy, label, [[v >= 0 ? "var(--s1)" : "var(--neg)", "over the hold", money(v)]]);
+    const showIt = () => showTip(box, tip, Math.max(x0, x1), cy, label, [[v >= 0 ? "var(--s1)" : "var(--neg)", what, money(v)]]);
     const hideIt = () => { tip.style.display = "none"; };
     for (const el of [bar, hot]) { el.addEventListener("pointerenter", showIt); el.addEventListener("pointerleave", hideIt); }
     bar.addEventListener("focus", showIt); bar.addEventListener("blur", hideIt);
     svg.append(hot, bar);
-    svg.append(s("text", { x: v >= 0 ? x1 + 6 : x1 - 6, y: cy + 4, "text-anchor": v >= 0 ? "start" : "end", class: "ink" }, usdC.format(v)));
+    svg.append(s("text", { x: v >= 0 ? x1 + 6 : x1 - 6, y: cy + 4, "text-anchor": v >= 0 ? "start" : "end", class: "ink" }, fmt(v)));
   });
   box.replaceChildren(svg, tip);
 }
 
-function drawCharts() { if (LAST) { drawEquity(LAST); drawHold(LAST); drawProfit(LAST); } }
+function drawProfit(r) {
+  const b = r.returns;
+  drawBars($("#profitChart"), [["Operating cash flow", b.operating_cash_flow], ["Loan paydown", b.principal_paydown],
+    ["Appreciation", b.appreciation], ["Bought below value", b.equity_at_purchase],
+    ["Transaction costs", b.transaction_costs], ["Taxes", b.taxes]], "over the hold");
+}
+const drawStress = r => drawBars($("#stressChart"), r.stress.map(sc => [sc.name, sc.monthly_cash_flow]), "cash flow a month", v => `${money(v)}/mo`);
+
+// The price ladder: one scale with the verdict's zones (buy up to the max offer, negotiate up to
+// what your targets and the market support, pass above) and the prices that set them.
+function drawLadder(r) {
+  const box = $("#ladder");
+  if (!box) return;
+  const o = r.offer, W = box.clientWidth;
+  const marks = [["Max offer", o.max_offer], ["Your targets", o.investment_value], [o.rule_70 != null ? "After repair" : "Market value", o.market_value]]
+    .filter(([, v]) => v != null && v > 0);
+  const vals = [o.price, o.walk_away, ...marks.map(([, v]) => v)].filter(v => v != null && v > 0);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo || hi * 0.2) * 0.15;
+  lo = Math.max(0, lo - pad); hi += pad;
+  const x = v => (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo) * W;
+  const T = 38, TH = 16, L = 76;   // track top, track height, top of the labels under it
+  const walk = o.walk_away ?? o.max_offer;
+  const zones = [["buy", "Buy", lo, o.max_offer], ["negotiate", "Negotiate", o.max_offer, walk], ["pass", "Pass", walk ?? lo, hi]]
+    .filter(([, , a, b]) => a != null && b != null && x(b) - x(a) >= 2);
+  const svg = s("svg", { width: W, height: L + 34, style: "position: absolute; left: 0; top: 0", "aria-hidden": "true" });
+  const kids = zones.map(([k, name, a, b], i) => h("div", { class: `zone ${k}`, style: `position: absolute; top: ${T}px; height: ${TH}px; left: ${x(a)}px; ` +
+      `width: ${Math.max(1, x(b) - x(a) - (i < zones.length - 1 ? 2 : 0))}px; border-radius: ${i ? "0" : "4px"} ${i < zones.length - 1 ? "0 0" : "4px 4px"} ${i ? "0" : "4px"}; ` +
+      "font-size: 10.5px; font-weight: 650; line-height: 16px; text-align: center; color: var(--ink); overflow: hidden" }, x(b) - x(a) > 70 ? name : ""));
+  const label = (cls, name, v) => h("div", { class: `ml ${cls}` }, name, h("b", null, money(v)));
+  const you = label("you", "Your price", o.price), below = marks.map(([name, v]) => [x(v), label("", name, v)]);
+  box.replaceChildren(svg, ...kids, you, ...below.map(([, el]) => el));
+  box.style.height = `${L + 34}px`;
+  // your price sits above the track; the others below, nudged apart in order so leaders never cross
+  const yw = you.offsetWidth, yx = x(o.price);
+  Object.assign(you.style, { left: `${Math.min(W - yw, Math.max(0, yx - yw / 2))}px`, top: "0px" });
+  svg.append(s("line", { x1: yx, x2: yx, y1: 32, y2: T + TH + 4, stroke: "var(--ink)", "stroke-width": 3 }));
+  below.sort((a, b) => a[0] - b[0]);
+  const w = below.map(([, el]) => el.offsetWidth), c = below.map(([cx]) => cx), GAP = 10;
+  for (let i = 1; i < c.length; i++) c[i] = Math.max(c[i], c[i - 1] + (w[i - 1] + w[i]) / 2 + GAP);
+  for (let i = c.length - 1; i >= 0; i--) c[i] = Math.min(c[i], (i < c.length - 1 ? c[i + 1] - (w[i] + w[i + 1]) / 2 - GAP : W - w[i] / 2));
+  for (let i = 0; i < c.length; i++) c[i] = Math.max(c[i], i ? c[i - 1] + (w[i - 1] + w[i]) / 2 + GAP : w[i] / 2);
+  below.forEach(([cx, el], i) => {
+    Object.assign(el.style, { left: `${c[i] - w[i] / 2}px`, top: `${L}px`, textAlign: "center" });
+    svg.append(s("path", { d: `M${cx},${T - 4}V${T + TH + 6}L${c[i]},${L - 3}`, fill: "none", stroke: "var(--ink-2)", "stroke-width": 1.5 }));
+  });
+  box.setAttribute("aria-label", `Price scale. Your price ${money(o.price)}; ${marks.map(([n, v]) => `${n.toLowerCase()} ${money(v)}`).join("; ")}. ` +
+    (o.max_offer == null ? "No price meets every target." : `Buy at or below ${money(o.max_offer)}, negotiate up to ${money(walk)}, pass above.`));
+}
+
+function drawCharts() { if (LAST) { drawLadder(LAST); drawEquity(LAST); drawHold(LAST); drawProfit(LAST); drawStress(LAST); } }
 let resizeTimer = null;
 window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawCharts, 150); });
 
@@ -1218,6 +1407,9 @@ $("#ptype").addEventListener("change", () => {
 $("#addRepair").addEventListener("click", () => { $("#repairs tbody").append(repairRow({ description: "", cost: "", year: 0 })); });
 $("#reset").addEventListener("click", () => { try { localStorage.removeItem(STORE); } catch { /* ignore */ } fill(DEFAULTS.deal); run(); });
 $("#print").addEventListener("click", () => window.print());
+const menu = $(".menu");
+document.addEventListener("click", e => { if (!e.target.closest(".menu summary")) menu.open = false; });
+addEventListener("beforeprint", () => { for (const d of $$("details.fold, details.more", out)) d.open = true; });
 
 // ---------- glossary tooltips ----------
 // Short versions of the investor guide (/guide); each key is a section id there.

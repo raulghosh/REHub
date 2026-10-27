@@ -81,7 +81,7 @@ def post(url, body: bytes, **headers):
 
 def test_web_api(server):
     with urllib.request.urlopen(server + "/") as r:
-        assert b"Deal Evaluator" in r.read()
+        assert b"Deal evaluator" in r.read()
         assert "connect-src 'self'" in r.headers["Content-Security-Policy"]
     with urllib.request.urlopen(server + "/guide") as r:
         assert b'id="cash-on-cash"' in r.read()

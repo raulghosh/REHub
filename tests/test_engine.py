@@ -93,6 +93,7 @@ def test_verdicts_follow_the_margin():
     for price, verdict in ((85_000, "buy"), (95_000, "negotiate"), (105_000, "pass")):
         o = evaluate(golden(purchase__price=price, targets__min_cash_on_cash=None)).offer
         assert (o.verdict, o.max_offer) == (verdict, pytest.approx(90_000)), price
+        assert o.walk_away == pytest.approx(100_000)   # the price ladder's negotiate / pass line
 
 
 def test_upkeep_rises_with_age_and_depends_on_type():
